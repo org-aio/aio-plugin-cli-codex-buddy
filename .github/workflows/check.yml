@@ -3,6 +3,7 @@ name: Check
 on:
   push:
   pull_request:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -35,8 +36,9 @@ jobs:
           PACKAGE_URL: ${{ github.event.release.assets[0].browser_download_url }}
         run: npm exec --yes "--package=$PACKAGE_URL" -- codex-model-sync --version
       - name: Run the published npm package through npx
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
         shell: bash
+        working-directory: ${{ runner.temp }}
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || 'latest' }}
         run: npx --yes "codex-model-sync@${RELEASE_TAG#v}" --version
