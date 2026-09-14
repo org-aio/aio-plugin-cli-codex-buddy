@@ -27,10 +27,16 @@ jobs:
       - run: npm pack
       - name: Run the packed CLI through npx
         shell: bash
-        run: npm exec --yes --package=./codex-model-sync-0.1.1.tgz -- codex-model-sync --version
+        run: npm exec --yes --package ./codex-model-sync-*.tgz -- codex-model-sync --version
       - name: Run the public release through npx
         if: github.event_name == 'release'
         shell: bash
         env:
           PACKAGE_URL: ${{ github.event.release.assets[0].browser_download_url }}
         run: npm exec --yes "--package=$PACKAGE_URL" -- codex-model-sync --version
+      - name: Run the published npm package through npx
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: npx --yes "codex-model-sync@${RELEASE_TAG#v}" --version

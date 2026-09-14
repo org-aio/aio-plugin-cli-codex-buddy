@@ -2,29 +2,12 @@
 
 **One command to populate Codex's model picker from your own provider, and keep its catalog synchronized.**
 
-The npm registry release is still pending. **`npx -y codex-model-sync` will return
-404 until that publication completes.** Use the public GitHub release package:
-
-```sh
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
-```
-
-This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
-the ready-to-run bundle and requires no source build. To install from source instead:
-
-```sh
-git clone https://github.com/zjarlin/codex-model-sync.git
-cd codex-model-sync
-npm ci
-npm run build
-node dist/cli.mjs
-```
-
-Once the package is published to npm, setup will be:
-
 ```sh
 npx -y codex-model-sync
 ```
+
+This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
+the ready-to-run bundle from npm and requires no source build.
 
 Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes. No URL or API key needs to be copied into this tool.
 
@@ -43,21 +26,18 @@ automatically. `--codex-bin` also accepts the npm `codex.cmd` launcher.
 
 ## Commands
 
-The following examples use the GitHub release package while npm publication is pending.
-For a source checkout, replace the `npx -y ...tgz` prefix with `node dist/cli.mjs`.
-
 ```sh
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz sync
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz status --json
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz watch
-npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz uninstall
+npx -y codex-model-sync
+npx -y codex-model-sync sync
+npx -y codex-model-sync status --json
+npx -y codex-model-sync watch
+npx -y codex-model-sync uninstall
 ```
 
 Or install globally:
 
 ```sh
-npm install -g https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
+npm install -g codex-model-sync
 codex-model-sync
 ```
 
