@@ -66,6 +66,12 @@ test('packaged CLI configures from auth.json, tracks additions/removals and rere
   await writeFile(configFile, (await readFile(configFile, 'utf8')) + '\n[unrelated]\nkeep = true\n');
   await run('uninstall');
   assert.deepEqual(parse(await readFile(configFile, 'utf8')), { ...parse(config), unrelated: { keep: true } });
+  const callsAfterUninstall = state.requests.length;
+  await assert.rejects(run('sync'), error => error.stderr.includes('uninstalled'));
+  assert.equal(state.requests.length, callsAfterUninstall);
+  assert.equal(JSON.parse((await run('uninstall')).stdout).restored, false);
+  await run('setup', '--no-service');
+  await run('sync');
 });
 
 test('failed HTTP, empty list, duplicate IDs, and Codex rejection preserve the last catalog', async t => {
@@ -133,6 +139,11 @@ test('Windows accepts the scheduled task and uninstall removes it', { skip: proc
     await exec('schtasks.exe', ['/Query', '/TN', id], { env });
     await run('uninstall');
     await assert.rejects(exec('schtasks.exe', ['/Query', '/TN', id], { env }));
+    await run('setup');
+    await exec('schtasks.exe', ['/Delete', '/TN', id, '/F'], { env });
+    const result = JSON.parse((await run('uninstall')).stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.restored, true);
   } catch (error) {
     const xml = await readFile(join(home, 'model-sync', 'task.xml'), 'utf8').catch(() => '');
     t.diagnostic(`Task registration failed: ${error.stderr || error.message}; XML bytes: ${xml.length}`);

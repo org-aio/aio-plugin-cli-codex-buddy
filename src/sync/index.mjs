@@ -12,8 +12,9 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
   const directory = join(home, 'model-sync');
   return withLock(directory, async () => {
     try {
-      const connection = await readConnection(home);
       const state = await readJson(join(directory, 'state.json'), {});
+      if (state.uninstalled && !setup) throw new Error('Model sync was uninstalled. Run setup to enable it again.');
+      const connection = await readConnection(home);
       const catalogPath = join(directory, 'catalog.json');
       if (state.configured && !setup && connection.catalogPath !== catalogPath) {
         throw new Error('model_catalog_json was changed outside this tool. Run setup to reconfigure.');
@@ -46,7 +47,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
         if (current.models) await atomicWrite(join(directory, 'previous-catalog.json'), current);
         await atomicWrite(catalogPath, catalog);
       }
-      if (!state.configured) {
+      if (!state.configured || state.uninstalled) {
         state.originalCatalog = connection.config.model_catalog_json ?? null;
         await atomicWrite(join(directory, 'initial-catalog-setting.json'), { model_catalog_json: state.originalCatalog });
       }
@@ -55,7 +56,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
       if (connection.catalogPath !== catalogPath) {
         await atomicWrite(connection.configFile, editCatalogSetting(source, catalogPath));
       }
-      await atomicWrite(join(directory, 'state.json'), { ...state, configured: true, codexBinary: binary });
+      await atomicWrite(join(directory, 'state.json'), { ...state, configured: true, uninstalled: false, codexBinary: binary });
       const before = new Set((existing.models || []).filter(model => model.visibility !== 'hide').map(model => model.slug));
       const after = new Set(listing.data.map(model => model.id));
       const result = {

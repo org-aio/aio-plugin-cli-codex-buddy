@@ -46,7 +46,17 @@ try {
       else console.log(JSON.stringify(result, null, 2));
     };
     if (action === 'status') report({ ...await readJson(join(home, 'model-sync', 'status.json'), { ok: false, error: 'Not configured yet.' }), service: (await readJson(join(home, 'model-sync', 'state.json'), {})).service || null });
-    else if (action === 'uninstall') report(await uninstall(home));
+    else if (action === 'uninstall') {
+      const result = await uninstall(home);
+      if (values.json) report(result);
+      else {
+        console.log(`Automatic sync disabled. Codex config: ${result.config}.`);
+        console.log(`Background task ${result.serviceRemoved ? 'removed' : 'could not be fully removed'}. Backups: ${result.backups}`);
+        for (const warning of result.warnings) console.error(`Warning: ${warning}`);
+        console.log('Restart Codex to reload its original model catalog.');
+      }
+      if (!result.ok) process.exitCode = 1;
+    }
     else if (action === 'watch') {
       const controller = new AbortController();
       for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => controller.abort());

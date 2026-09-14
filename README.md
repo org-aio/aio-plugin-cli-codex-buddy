@@ -11,6 +11,40 @@ the ready-to-run bundle from npm and requires no source build.
 
 Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes. No URL or API key needs to be copied into this tool.
 
+## Uninstall and restore Codex
+
+If Codex stops responding after setup, fully quit Codex and stop any foreground
+`watch` command with Ctrl+C, then run:
+
+```sh
+npx -y codex-model-sync@latest uninstall
+```
+
+Reopen Codex after the command finishes. If you selected a provider-only model
+since installing this tool, select your previously working model again.
+
+Uninstall stops and removes the background task, restores the original
+`model_catalog_json` setting (or removes this tool's setting if none existed),
+and disables further synchronization. API keys, provider settings, selected model,
+conversations, and unrelated config remain intact. Backups stay in `model-sync`.
+It does not need a working provider API, valid credentials, or a working Codex CLI.
+Use the same `--home PATH` if you installed into a custom Codex directory.
+
+Version 0.1.3 can uninstall earlier releases. It restores config even if scheduler
+cleanup fails, retries while an active sync finishes, handles an already removed
+task, and uses the initial setting backup after a partial installation. Warnings
+and a nonzero exit code indicate incomplete cleanup; the output separately states
+whether config was restored. Running uninstall again is safe. Only explicit
+`setup` enables synchronization again.
+
+If you also installed the CLI globally, remove that package **after** rollback:
+
+```sh
+npm uninstall -g codex-model-sync
+```
+
+Removing the npm package alone does not undo Codex setup or its background task.
+
 ## Requirements
 
 - Node.js 20+ and an installed Codex CLI with `codex debug models` support.

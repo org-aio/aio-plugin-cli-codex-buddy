@@ -1,10 +1,8 @@
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { readFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { parse } from 'smol-toml';
-import { atomicWrite, command, readJson, withLock } from '../runtime/index.mjs';
-import { editCatalogSetting } from '../config/index.mjs';
+import { atomicWrite, command, readJson } from '../runtime/index.mjs';
 import { serviceId, launchAgent, userService, userTimer, windowsTask } from './templates.mjs';
 
 export async function installService(home, interval) {
@@ -48,27 +46,4 @@ export async function installService(home, interval) {
   return { id, interval };
 }
 
-export async function uninstall(home) {
-  const directory = join(home, 'model-sync');
-  const statePath = join(directory, 'state.json');
-  const state = await readJson(statePath, {});
-  if (state.service) {
-    const { id, platform, files } = state.service;
-    if (platform === 'darwin') await command('launchctl', ['bootout', `gui/${process.getuid()}/${id}`]);
-    else if (platform === 'linux') await command('systemctl', ['--user', 'disable', '--now', `${id}.timer`]);
-    else if (platform === 'win32') await command('schtasks.exe', ['/Delete', '/TN', id, '/F']);
-    for (const path of files) await rm(path, { force: true });
-    if (platform === 'linux') await command('systemctl', ['--user', 'daemon-reload']);
-  }
-  return withLock(directory, async () => {
-    if (state.configured) {
-      const path = join(home, 'config.toml');
-      const source = await readFile(path, 'utf8');
-      if (parse(source).model_catalog_json === join(directory, 'catalog.json')) {
-        await atomicWrite(path, editCatalogSetting(source, state.originalCatalog ?? undefined));
-      }
-    }
-    await atomicWrite(statePath, { ...state, configured: false, service: null });
-    return { ok: true, restored: true, backups: directory };
-  });
-}
+export { uninstall } from './uninstall.mjs';

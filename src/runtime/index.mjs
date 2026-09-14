@@ -54,7 +54,7 @@ export async function withLock(directory, operation) {
     if (owner.pid) {
       try { process.kill(owner.pid, 0); } catch (failure) { alive = failure.code !== 'ESRCH'; }
     } else { alive = Date.now() - (await stat(lock)).mtimeMs < 120000; }
-    if (alive) throw new Error('Another model sync is running.');
+    if (alive) throw Object.assign(new Error('Another model sync is running.'), { code: 'ELOCKED' });
     await rm(lock, { recursive: true });
     await mkdir(lock);
   }
