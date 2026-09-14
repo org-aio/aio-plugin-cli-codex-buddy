@@ -1,0 +1,48 @@
+{
+  "name": "codex-model-sync",
+  "version": "0.1.0",
+  "description": "One-command Codex model catalog setup and automatic sync from your configured OpenAI-compatible provider.",
+  "type": "module",
+  "bin": {
+    "codex-model-sync": "dist/cli.mjs"
+  },
+  "files": [
+    "dist/cli.mjs",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "npm run build && node --test",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "codex",
+    "models",
+    "openai-compatible",
+    "cli",
+    "model-catalog"
+  ],
+  "author": "zjarlin",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "smol-toml": "1.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zjarlin/codex-model-sync.git"
+  },
+  "homepage": "https://github.com/zjarlin/codex-model-sync#readme",
+  "bugs": {
+    "url": "https://github.com/zjarlin/codex-model-sync/issues"
+  }
+}
