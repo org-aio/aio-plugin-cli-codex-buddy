@@ -1,6 +1,6 @@
-import { readFile, access } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve, join, isAbsolute, delimiter } from 'node:path';
+import { resolve, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { parse } from 'smol-toml';
 import { command, readJson } from '../runtime/index.mjs';
@@ -78,24 +78,4 @@ export function editCatalogSetting(source, value) {
     try { if (isDeepStrictEqual(parse(candidate), expected)) return candidate; } catch { /* Try next candidate. */ }
   }
   throw new Error('Cannot safely edit model_catalog_json; use a single-line root setting.');
-}
-
-export async function findBinary(explicit, env = process.env) {
-  const executable = process.platform === 'win32' ? 'codex.exe' : 'codex';
-  const candidates = explicit ? [explicit] : [
-    env.CODEX_CLI_PATH,
-    ...String(env.PATH || '').split(delimiter).map(directory => join(directory, executable)),
-    ...(process.platform === 'darwin' ? [
-      '/Applications/ChatGPT.app/Contents/Resources/codex',
-      '/Applications/Codex.app/Contents/Resources/codex',
-    ] : []),
-  ];
-  for (const candidate of candidates.filter(Boolean)) {
-    try {
-      await access(candidate);
-      const version = await command(candidate, ['--version']);
-      if (/codex.*\d+\.\d+/.test(version)) return isAbsolute(candidate) ? candidate : resolve(candidate);
-    } catch { /* Continue searching installed clients. */ }
-  }
-  throw new Error('Codex executable not found. Install Codex or pass --codex-bin /absolute/path/to/codex (codex.exe on Windows).');
 }

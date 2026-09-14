@@ -2,7 +2,15 @@
 
 **One command to populate Codex's model picker from your own provider, and keep its catalog synchronized.**
 
-The npm release is not published yet. Install from source for now:
+The npm registry release is still pending. **`npx -y codex-model-sync` will return
+404 until that publication completes.** Use the public GitHub release package:
+
+```sh
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
+```
+
+This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
+the ready-to-run bundle and requires no source build. To install from source instead:
 
 ```sh
 git clone https://github.com/zjarlin/codex-model-sync.git
@@ -26,25 +34,30 @@ Already configured Codex with a custom `base_url` and API key? That is all you n
 - A configured OpenAI-compatible provider with a working model-list endpoint and API key.
 - macOS LaunchAgents, Linux user systemd, or Windows Task Scheduler for automatic background runs. Use `watch` or `--no-service` elsewhere.
 
-The current release is tested on macOS with Codex 0.153.4. Linux and Windows task definitions have automated tests; their actual OS schedulers have not been exercised in this release. On Windows, pass `--codex-bin` if the native `codex.exe` is not on PATH.
+The CLI is tested locally on macOS with Codex 0.153.4. CI covers Linux and Windows,
+including installation of the packed CLI through Git Bash on Windows and Windows
+task registration/removal. The Linux systemd scheduler and interactive Windows
+background execution are not exercised by those tests. On Windows, both a native
+`codex.exe` and the usual `npm install -g @openai/codex` installation are discovered
+automatically. `--codex-bin` also accepts the npm `codex.cmd` launcher.
 
 ## Commands
 
-The following examples use the npm package name. For a source checkout, replace
-`npx -y codex-model-sync` with `node dist/cli.mjs`.
+The following examples use the GitHub release package while npm publication is pending.
+For a source checkout, replace the `npx -y ...tgz` prefix with `node dist/cli.mjs`.
 
 ```sh
-npx -y codex-model-sync                  # Set up and enable automatic synchronization
-npx -y codex-model-sync sync             # Refresh once now
-npx -y codex-model-sync status --json    # Inspect the last result and task configuration
-npx -y codex-model-sync watch            # Keep refreshing in the foreground
-npx -y codex-model-sync uninstall        # Remove the task and restore the prior catalog setting
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz sync
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz status --json
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz watch
+npx -y https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz uninstall
 ```
 
 Or install globally:
 
 ```sh
-npm install -g codex-model-sync
+npm install -g https://github.com/zjarlin/codex-model-sync/releases/download/v0.1.1/codex-model-sync-0.1.1.tgz
 codex-model-sync
 ```
 

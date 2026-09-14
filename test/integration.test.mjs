@@ -16,7 +16,7 @@ const cli = resolve('dist/cli.mjs');
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'model-sync-e2e-'));
   const native = { ...genericModel('native'), description: 'Native fixture', priority: 1 };
-  const binary = join(home, 'fake-codex');
+  const binary = join(home, 'fake-codex.mjs');
   await writeFile(binary, `#!${process.execPath}\nimport fs from 'node:fs';\nconst args = process.argv.slice(2);\nif (args.includes('--version')) console.log('codex-cli 0.153.4');\nelse if (args.includes('--bundled')) console.log(${JSON.stringify(JSON.stringify({ models: [native] }))});\nelse {\n if (fs.existsSync(${JSON.stringify(join(home, 'validation-fails'))})) process.exit(2);\n const value = args.find(arg => arg.startsWith('model_catalog_json='));\n console.log(fs.readFileSync(JSON.parse(value.slice(value.indexOf('=') + 1)), 'utf8'));\n}\n`);
   await chmod(binary, 0o755);
   const state = { ids: ['native', 'old-custom'], httpStatus: 200, requests: [], key: 'fixture-key', manifestStatus: 404 };
@@ -37,7 +37,7 @@ async function fixture(t) {
   const env = { ...process.env }; delete env.OPENAI_API_KEY;
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(home, { recursive: true, force: true }); });
   const run = (...args) => exec(process.execPath, [cli, ...args, '--home', home, '--codex-bin', binary, '--json'], { env, timeout: 30000 });
-  return { home, state, run, config, server };
+  return { home, state, run, config, server, env };
 }
 
 test('packaged CLI configures from auth.json, tracks additions/removals and rereads credentials', async t => {
@@ -114,11 +114,28 @@ test('process lock blocks concurrent writes and recovers a dead owner', async t 
   await withLock(directory, async () => assert.ok(true));
 });
 
-test('background commands can run npm Node shims with a minimal service PATH', async t => {
+test('background commands can run npm Node shims with a minimal service PATH', { skip: process.platform === 'win32' }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'node-shim-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const binary = join(directory, 'shim');
   await writeFile(binary, '#!/usr/bin/env node\nconsole.log("shim-ok")\n');
   await chmod(binary, 0o755);
   assert.equal((await command(binary, [], { env: { PATH: '/usr/bin:/bin' } })).trim(), 'shim-ok');
+});
+
+test('Windows accepts the scheduled task and uninstall removes it', { skip: process.platform !== 'win32' }, async t => {
+  const { home, run, env } = await fixture(t);
+  const { serviceId } = await import('../src/service/templates.mjs');
+  const id = serviceId(home);
+  t.after(async () => { try { await exec('schtasks.exe', ['/Delete', '/TN', id, '/F'], { env }); } catch { /* Already removed. */ } });
+  try {
+    await run('setup');
+    await exec('schtasks.exe', ['/Query', '/TN', id], { env });
+    await run('uninstall');
+    await assert.rejects(exec('schtasks.exe', ['/Query', '/TN', id], { env }));
+  } catch (error) {
+    const xml = await readFile(join(home, 'model-sync', 'task.xml'), 'utf8').catch(() => '');
+    t.diagnostic(`Task registration failed: ${error.stderr || error.message}; XML bytes: ${xml.length}`);
+    throw error;
+  }
 });

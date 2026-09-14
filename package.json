@@ -1,6 +1,6 @@
 {
   "name": "codex-model-sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One-command Codex model catalog setup and automatic sync from your configured OpenAI-compatible provider.",
   "type": "module",
   "bin": {
