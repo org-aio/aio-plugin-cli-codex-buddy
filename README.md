@@ -198,6 +198,33 @@ npx -y codex-model-sync router enable
 npx -y codex-model-sync router uninstall
 ```
 
+### Strong planner, economical executor
+
+Complex tasks now default to a **strong planner → bounded execution tasks → centralized review** strategy. The main turn still requires an advanced model for planning, unresolved design decisions and final acceptance. After planning, the parent reassesses each small task independently and chooses an economical execution model instead of giving every child the whole project's advanced difficulty and full conversation history. Routine Git/project operations keep their direct route.
+
+Use exact IDs returned by your own `router models` command. For example, when these two IDs are available:
+
+```sh
+npx -y codex-model-sync router planning --planner-model gpt-6 --executor-model deepseek-v4.1-flash
+npx -y codex-model-sync router preview "重构模块并实现新的接口"
+npx -y codex-model-sync router planning status
+# Return both roles to automatic selection, or disable only this division of work:
+npx -y codex-model-sync router planning auto
+npx -y codex-model-sync router planning off
+```
+
+The names above are examples, not bundled model defaults. Explicit preferences are validated before saving. Each eligible turn rechecks the live directory; an unavailable/disabled/ineligible preference gets a clearly reported replacement. `preview` and `status` show `planning.planner`, `planning.executor`, up to five same-tier `executorCandidates` and `executorStatus: "recommended"`. The parent intersects those live candidates with its spawn tool's supported IDs, trying the configured preference first. If both primary roles resolve to the same model, the notice says the combination does not provide a model split.
+
+The executor's default task tier is `standard`, suitable for bounded implementation; `--executor-tier simple` is available for more mechanical work. Within the sufficient tier, executor ranking uses 90% estimated economy + 10% capability, weighted by valid health evidence, and requests `executorEffort: "low"` only when the catalog supports it. Planner selection retains advanced capability requirements. Prices are not measured by these estimates, and retries/context transfer also cost tokens; this is a cost-reduction strategy, not a claim of globally minimum spend.
+
+The `plan-executor` role receives a compact packet containing the goal, working directory/files, necessary context, settled interfaces/steps, change boundaries and verifiable acceptance criteria. Guidance prefers minimal-history handoff (such as `fork_turns: "none"` where supported), avoids duplicate planner tool work, and asks the executor to return evidence after at most two implementation attempts by default. `planning.maxAttempts` may be 1–3; it is a guidance budget, not a runtime hard limit. Unresolved architecture/security/business decisions and repeated implementation failures return to the planner. Permission/network errors are not automatic reasons to upgrade models.
+
+**This division uses parent-agent orchestration and hooks.** The bridge selects the main planner; hooks do not create children or force a running agent to switch. The parent must be permitted to delegate and its spawn tool must support the selected model and handoff options. A provider ID appearing in `/v1/models` does not guarantee that a particular desktop spawn tool accepts it. Unsupported combinations must be reported, never described as cheap execution while silently inheriting the strong model. `SubagentStart` reports the actual child model; the main-turn notice labels the executor only as a candidate. See [Codex subagent model configuration](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+
+Existing router installations need `router setup` again after upgrading to install the new bundle and role, then a desktop restart and review of changed hooks in `/hooks`. Policy/model preference changes after that take effect on subsequent turns without another restart. Ordinary `npx -y codex-model-sync` remains synchronization only.
+
+### Lifecycle guidance and specialist roles
+
 Setup also installs `UserPromptSubmit`, `SubagentStart`, `SubagentStop`, and `PostToolUse` guidance hooks, preserving any existing hooks (including `Stop`). Review the Auto Router definitions in Codex `/hooks` before they execute. Changed hook code gets a new content-addressed script path so Codex requests trust again. The installer never grants trust or bypasses review.
 
 `UserPromptSubmit` also detects project operations such as `跑起来`, `跑起来看看`, `启动项目`, builds, tests and known CLI invocations. It supplies local stack keywords and candidate commands before the first tool call, and prefers an existing suitable project operations agent before the model-neutral `~/.codex/agents/project-operations.toml` fallback. Ordinary development prompts also receive the project command context. The App Server bridge uses the same assessment before choosing the turn model; hooks alone cannot change an active model.
@@ -226,7 +253,7 @@ npx -y codex-model-sync router hooks status
 npx -y codex-model-sync router hooks uninstall
 ```
 
-`router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes this package's hook commands and its unmodified Git/project operations profiles; user edits to those profiles are preserved. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
+`router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes this package's hook commands and its unmodified Git/project operations and plan-executor profiles; user edits to those profiles are preserved. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
 
 An available assessment model is selected from catalog capability descriptions and reused after successful assessments. It evaluates model capabilities and relative economy from the complete inventory. This assessment is cached for 24 hours and refreshed when models or descriptions change. It is an extra provider API call and can incur usage. Invalid, incomplete or unavailable assessment retains previous valid profiles, shows new models as uncertain name/description estimates, and retries after one minute. Uncertain new models do not execute tasks. `assessment: "heuristic"` disables this extra API call.
 

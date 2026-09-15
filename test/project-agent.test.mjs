@@ -45,7 +45,7 @@ test('existing project operations roles are selected only when their fixed model
   assert.equal((await findAgent(home, cwd, advice, definitions.project, 'advanced')).name, 'project-operations');
 });
 
-test('installer migrates the existing Git role, installs both model-neutral roles and preserves user edits', async t => {
+test('installer migrates the existing Git role, installs specialist roles and preserves user edits', async t => {
   const { home } = await fixture(t);
   const agent = await installAgent(home, definitions.git);
   await atomicWrite(join(home, 'model-router/hooks-install.json'), { installed: true, agent });
@@ -57,12 +57,14 @@ test('installer migrates the existing Git role, installs both model-neutral role
     assert.ok(await readFile(agent.file, 'utf8'));
     return;
   }
-  assert.equal(installed.agents.length, 2); assert.equal(installed.agent, undefined);
+  assert.deepEqual(installed.agents.map(role => role.name).sort(), ['git-operations', 'plan-executor', 'project-operations']);
+  assert.equal(installed.agent, undefined);
   for (const role of installed.agents) assert.equal(parse(await readFile(role.file, 'utf8')).model, undefined);
   const project = installed.agents.find(item => item.name === 'project-operations');
   await writeFile(project.file, '# user modified\n' + await readFile(project.file, 'utf8'));
   assert.equal((await installHooks(home, bundle)).agents.find(item => item.name === project.name).preserved, true);
   await uninstallHooks(home);
   await assert.rejects(readFile(agent.file), { code: 'ENOENT' });
+  await assert.rejects(readFile(installed.agents.find(role => role.name === 'plan-executor').file), { code: 'ENOENT' });
   assert.match(await readFile(project.file, 'utf8'), /user modified/);
 });

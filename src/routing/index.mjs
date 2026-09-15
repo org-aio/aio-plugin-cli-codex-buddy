@@ -10,6 +10,7 @@ import { loadHealth } from './health.mjs';
 import { inventory } from './inventory.mjs';
 import { saveAdvice } from '../lifecycle/advice.mjs';
 import { modelTier } from './tiers.mjs';
+import { selectPlanning } from '../planning/selection.mjs';
 
 export async function routeTurn(home, params, thread = {}) {
   const policy = normalizePolicy(await readJson(join(home, 'model-router', 'policy.json'), {}));
@@ -30,7 +31,12 @@ export async function routeTurn(home, params, thread = {}) {
   const [discovered, health] = await Promise.all([inventory(home, connection, listing, metadata, policy), loadHealth(connection, policy.health)]);
   discovered.models = discovered.models.map(m => ({ ...m, capabilityTier: modelTier(m, policy), health: health.models.find(h => h.id === m.id) || null }));
   discovered.healthStatus = health.status;
-  await saveAdvice(home, connection, discovered, health).catch(() => {});
+  await saveAdvice(home, connection, discovered, health, metadata).catch(() => {});
   if (params.inventoryOnly) return discovered;
-  return { ...selectModel(discovered.models, policy, assessment, connection.config.model, metadata), healthStatus: health.status, inventoryWarning: discovered.warning };
+  const planning = assessment.tier === 'advanced' ? selectPlanning(discovered.models, policy, connection.config.model, metadata) : null;
+  const profiles = planning ? discovered.models.filter(m => m.id === planning.planner.model) : discovered.models;
+  const decision = selectModel(profiles, policy, assessment, connection.config.model, metadata);
+  return { ...decision, candidateCount: discovered.models.length,
+    eligibleCount: discovered.models.filter(m => m.purpose === 'general' && m.tools === true && !m.disabled).length,
+    planning, healthStatus: health.status, inventoryWarning: discovered.warning };
 }

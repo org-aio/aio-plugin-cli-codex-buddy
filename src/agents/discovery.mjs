@@ -6,7 +6,7 @@ import { parse } from 'smol-toml';
 import { tiers } from '../routing/tiers.mjs';
 
 const exec = promisify(execFile);
-export async function findAgent(home, cwd, advice, { name: installedName, match }, required = 'advanced') {
+export async function findAgent(home, cwd, advice, { name: installedName, match, model }, required = 'advanced') {
   const root = cwd ? await exec('git', ['rev-parse', '--show-toplevel'], { cwd, timeout: 500 }).then(r => r.stdout.trim(), () => null) : null;
   const directories = [...new Set([cwd && join(cwd, '.codex', 'agents'), root && join(root, '.codex', 'agents'), join(home, 'agents')].filter(Boolean))];
   const found = new Map();
@@ -23,6 +23,7 @@ export async function findAgent(home, cwd, advice, { name: installedName, match 
   }
   const suitable = [...found.values()].filter(role => typeof role.developer_instructions === 'string'
     && match.test(`${role.name} ${role.description || ''}`)
+    && (!model || !role.model || role.model === model)
     && (!role.model || tiers.indexOf(advice?.modelTiers?.[role.model]) >= tiers.indexOf(required)));
   suitable.sort((a, b) => Number(a.name === installedName) - Number(b.name === installedName));
   const role = suitable[0];

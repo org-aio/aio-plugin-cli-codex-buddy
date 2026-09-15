@@ -10,9 +10,11 @@ import { connectionBinding } from './health.mjs';
 import { normalizePolicy } from './policy.mjs';
 import { installHooks, uninstallHooks } from '../lifecycle/install.mjs';
 import { inspectProject } from '../project-tools/index.mjs';
+import { configurePlanning } from '../planning/commands.mjs';
 
-export async function routerCommand(action, home, { codexBin, prompt = '', entry, healthKeyFile, healthGroupId } = {}) {
+export async function routerCommand(action, home, { codexBin, prompt = '', entry, healthKeyFile, healthGroupId, ...options } = {}) {
   const directory = join(home, 'model-router');
+  if (action === 'planning') return configurePlanning(home, prompt, options);
   if (action === 'project') return inspectProject(process.cwd());
   if (action === 'hooks') {
     if (prompt === 'setup') return installHooks(home, fileURLToPath(new URL('./hooks.mjs', import.meta.url)));
@@ -57,5 +59,5 @@ export async function routerCommand(action, home, { codexBin, prompt = '', entry
     } catch { result.assessmentWarning = 'Inventory refresh failed; requests will keep their original model until discovery recovers.'; }
     return result;
   }
-  throw new Error('Unknown router command: use setup, status, models, project, preview, enable, disable, health, hooks, or uninstall.');
+  throw new Error('Unknown router command: use setup, status, models, project, preview, planning, enable, disable, health, hooks, or uninstall.');
 }

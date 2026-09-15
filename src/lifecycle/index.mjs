@@ -10,6 +10,7 @@ import { definitions } from '../agents/index.mjs';
 import { gitGuidance } from '../git-agent/guidance.mjs';
 import { projectGuidance, projectContext } from '../project-agent/guidance.mjs';
 import { inspectProject } from '../project-tools/index.mjs';
+import { planningGuidance } from '../planning/guidance.mjs';
 
 export async function runHook(home, input) {
   const policy = normalizePolicy(await readJson(join(home, 'model-router', 'policy.json'), {}));
@@ -18,15 +19,22 @@ export async function runHook(home, input) {
     if (input.agent_id) return null;
     const [project, advice] = await Promise.all([inspectProject(input.cwd), loadAdvice(home, policy)]);
     const assessment = await assess([{ type: 'text', text: input.prompt }], input.cwd, project);
+    const planning = assessment.tier === 'advanced' ? advice?.planning : null;
+    const executor = planning ? await findAgent(home, input.cwd, advice, { ...definitions.execution, model: planning.executor.model }, planning.executor.taskTier) : null;
+    const planningContext = planningGuidance(planning, executor);
     const definition = definitions[assessment.intent];
     if (!definition) {
-      const additionalContext = projectContext(project);
+      const additionalContext = planningContext + projectContext(project);
       return additionalContext ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext } } : null;
     }
     const agent = await findAgent(home, input.cwd, advice, definition, assessment.tier);
-    if (assessment.intent === 'project') return projectGuidance(assessment, agent, advice, project);
+    if (assessment.intent === 'project') {
+      const output = projectGuidance(assessment, agent, advice, project);
+      output.hookSpecificOutput.additionalContext += planningContext;
+      return output;
+    }
     const output = gitGuidance(assessment, agent, advice);
-    output.hookSpecificOutput.additionalContext += projectContext(project);
+    output.hookSpecificOutput.additionalContext += planningContext + projectContext(project);
     return output;
   }
   if (!['SubagentStart', 'SubagentStop', 'PostToolUse'].includes(input.hook_event_name)) return null;

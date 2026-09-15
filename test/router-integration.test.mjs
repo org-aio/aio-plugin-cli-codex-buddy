@@ -7,13 +7,14 @@ import { createInterface } from 'node:readline';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { readJson, atomicWrite } from '../src/runtime/index.mjs';
 
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'router-test-'));
   execFileSync('git', ['init', '-q', home]);
   const remote = { ids: ['gpt-5.6-luna', 'gpt-6-astra'], code: 200, delay: 0 };
   const server = createServer((req, res) => setTimeout(() => {
-    const profiles = remote.ids.map(id => ({ id, capability: id.includes('luna') || id.includes('flash') ? 50 : 90, economy: id.includes('luna') || id.includes('flash') ? 90 : 40, tools: true, purpose: 'general' }));
+    const profiles = remote.ids.map(id => ({ id, capability: id.includes('luna') || id.includes('flash') ? 50 : 90, economy: id.includes('luna') || id.includes('flash') ? 90 : 40, tools: true, purpose: 'general', ...remote.profiles?.[id] }));
     const body = req.url.endsWith('/responses') ? { output_text: remote.assessmentFails ? 'invalid assessment' : JSON.stringify({ models: profiles }) } : { data: remote.ids.map(id => ({ id })) };
     res.writeHead(remote.code, { 'content-type': 'application/json' }).end(JSON.stringify(body));
   }, remote.delay));
@@ -56,6 +57,37 @@ console.log(JSON.stringify({id:m.id,result})); }
   return { home, remote, call, messages };
 }
 const params = text => ({ threadId: 't', model: 'gpt-6-astra', input: [{ type: 'text', text }], approvalPolicy: 'never' });
+
+async function planningStatus(home, model) {
+  // The bridge intentionally persists status asynchronously, without delaying RPC responses.
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const state = await readJson(join(home, 'model-router/status.json'), {});
+    if (state.planning?.executor.model === model) return state;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.fail('Planning status was not persisted');
+}
+
+test('live planning preferences route the main turn while reporting the worker only as a candidate', async t => {
+  const f = await fixture(t);
+  f.remote.ids = ['fixture/planner', 'fixture/strong', 'fixture/worker'];
+  f.remote.profiles = { 'fixture/planner': { capability: 94 }, 'fixture/strong': { capability: 98 }, 'fixture/worker': { capability: 75, economy: 95 } };
+  await atomicWrite(join(f.home, 'model-router/policy.json'), { planning: { plannerModel: 'fixture/planner', executorModel: 'fixture/worker' } });
+  const result = await f.call('turn/start', params('设计并重构复杂模块'));
+  assert.equal(result.result.seen.model, 'fixture/planner');
+  assert.equal(result.result.seen.approvalPolicy, 'never');
+  assert.deepEqual(result.result.seen.input, params('设计并重构复杂模块').input);
+  assert.ok(f.messages.some(m => /执行候选：fixture\/worker.*尚未创建/.test(m.params?.message || '')));
+  let state = await planningStatus(f.home, 'fixture/worker');
+  assert.equal(state.planning.executorStatus, 'recommended');
+  assert.equal(state.eligibleCount, 3);
+  f.remote.ids = ['fixture/planner', 'fixture/strong', 'fixture/new-worker'];
+  f.remote.profiles['fixture/new-worker'] = { capability: 78, economy: 92 };
+  await f.call('turn/start', params('继续设计复杂模块'));
+  state = await planningStatus(f.home, 'fixture/new-worker');
+  assert.equal(state.planning.executor.model, 'fixture/new-worker');
+  assert.equal(state.planning.executor.preferredAvailable, false);
+});
 
 test('stdio bridge changes models on live list changes and reports the accepted model', async t => {
   const f = await fixture(t);
