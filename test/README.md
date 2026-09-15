@@ -5,3 +5,5 @@
 卸载回归覆盖调度器失败继续回滚、缺失任务、部分安装、重复卸载、并发同步、旧运行时路径保护与重新安装。Windows CI 实际删除计划任务后再次执行卸载。
 
 Project fixtures cover manifest discovery without script execution, inherited workspace CLIs, Kotlin application modules, prompt-submit hints, specialist ownership migration, and model selection through the packaged App Server bridge.
+
+Legacy default/setup CLI integration tests isolate the OS scheduler and confirm that synchronization never installs a router or changes an existing router policy.

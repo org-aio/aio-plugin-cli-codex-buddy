@@ -10,7 +10,7 @@ import { routerCommand } from './routing/commands.mjs';
 
 const help = `codex-model-sync [setup|sync|watch|status|uninstall|router] [options]
 
-setup       Sync models, install background sync and desktop Auto Router (default)
+setup       Sync models and install background sync (default; legacy behavior)
 sync        Sync once; read the current provider and API key again
 watch       Sync repeatedly in the foreground
 status      Show synchronization and Auto Router status
@@ -21,13 +21,14 @@ uninstall   Remove the background task and restore the prior catalog setting
 --codex-bin PATH  Codex executable; detected automatically when omitted
 --interval N      Background interval in seconds (default: 300; multiples of 60)
 --no-service      Sync only, without background tasks or desktop router
---no-router       Install model sync without Auto Router
+--no-router       Legacy flag; setup already leaves Auto Router unchanged
 --json            Print machine-readable results
 --help            Show this help
 --version         Show the CLI version
 
 Models are synchronized automatically. Running Codex clients may need a restart
 to reload their model picker. API keys are read locally and never saved by this tool.
+Auto Router is opt-in: run router setup, then restart the desktop app once.
 `;
 
 try {
@@ -76,14 +77,11 @@ try {
     } else {
       const result = await syncModels(home, { codexBin: values['codex-bin'], setup: action === 'setup' });
       if (action === 'setup' && !values['no-service']) result.service = await installService(home, interval);
-      if (action === 'setup' && !values['no-service'] && !values['no-router']) result.router = await routerCommand('setup', home, { codexBin: values['codex-bin'] });
       report(result);
       if (action === 'setup' && !values.json) {
         if (result.service) console.log(`Automatic sync installed: every ${interval / 60} minutes.`);
-        if (result.router) console.log(result.router.installed ? `Auto Router installed: ${result.router.modelCount ?? 'dynamic'} provider models. Use router models/status/disable to inspect or control it.` : result.router.reason);
-        if (result.router?.assessmentWarning) console.log(result.router.assessmentWarning);
-        if (result.router?.hooks?.installed) console.log('Lifecycle guidance, Git and project operations agents installed. Review the Auto Router hooks in Codex /hooks to enable execution.');
         console.log('Restart running Codex clients to reload the model picker.');
+        console.log('Optional Auto Router: run codex-model-sync router setup, then restart the desktop app and review its hooks in /hooks.');
       }
     }
   }

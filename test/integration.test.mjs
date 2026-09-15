@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { genericModel } from '../src/catalog/index.mjs';
 import { withLock, command } from '../src/runtime/index.mjs';
@@ -110,6 +111,40 @@ test('changing provider base_url is picked up and a manual catalog override is r
   await writeFile(configPath, source.replace(/model_catalog_json = .*/, 'model_catalog_json = "manual.json"'));
   await assert.rejects(run('sync'), error => error.stderr.includes('changed outside this tool'));
   assert.ok((await readFile(configPath, 'utf8')).includes('"manual.json"'));
+});
+
+test('legacy default/setup commands only install synchronization and preserve explicit router choices', { skip: process.platform === 'win32' }, async t => {
+  const { home, run, env } = await fixture(t);
+  const preload = join(home, 'isolate-scheduler.mjs');
+  // Exercise the packaged CLI and service files while isolating the OS scheduler.
+  await writeFile(preload, `import os from 'node:os';
+import cp from 'node:child_process';
+import {promisify} from 'node:util';
+import {syncBuiltinESMExports} from 'node:module';
+import {basename} from 'node:path';
+const realExec = promisify(cp.execFile);
+const original = cp.execFile;
+cp.execFile = (...args) => original(...args);
+cp.execFile[promisify.custom] = (binary, ...args) => ['launchctl', 'systemctl'].includes(basename(binary)) ? Promise.resolve({stdout:'', stderr:''}) : realExec(binary, ...args);
+os.homedir = () => ${JSON.stringify(home)};
+syncBuiltinESMExports();
+`);
+  env.NODE_OPTIONS = `--import=${pathToFileURL(preload).href}`;
+  env.XDG_CONFIG_HOME = join(home, 'os-config');
+  for (const args of [[], ['setup'], ['--no-router']]) {
+    const result = JSON.parse((await run(...args)).stdout);
+    assert.equal(result.visibleCount, 2); assert.ok(result.service);
+    assert.equal(result.router, undefined);
+    for (const file of ['model-router/install.json', 'hooks.json', 'agents/project-operations.toml']) await assert.rejects(stat(join(home, file)), { code: 'ENOENT' });
+  }
+  const policy = join(home, 'model-router/policy.json');
+  await mkdir(join(home, 'model-router'));
+  for (const enabled of [true, false]) {
+    const original = JSON.stringify({ enabled, models: { 'private/model': { modelTier: 'standard' } } });
+    await writeFile(policy, original);
+    await run('setup');
+    assert.equal(await readFile(policy, 'utf8'), original);
+  }
 });
 
 test('process lock blocks concurrent writes and recovers a dead owner', async t => {

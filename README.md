@@ -1,6 +1,6 @@
 # codex-model-sync
 
-**One command for dynamic model discovery, catalog sync, and desktop Auto Router.**
+**One command for dynamic model discovery and catalog sync. Optional desktop Auto Router.**
 
 ```sh
 npx -y codex-model-sync
@@ -9,7 +9,7 @@ npx -y codex-model-sync
 This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
 the ready-to-run bundle from npm and requires no source build.
 
-Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes, and enables Auto Router on macOS. Use `--no-router` for catalog sync only. No URL or API key needs to be copied into this tool.
+Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes. The default command retains the original sync-only behavior. Auto Router is enabled separately with `router setup` on macOS. No URL or API key needs to be copied into this tool.
 
 ## Uninstall and restore Codex
 
@@ -59,6 +59,8 @@ background execution are not exercised by those tests. On Windows, both a native
 automatically. `--codex-bin` also accepts the npm `codex.cmd` launcher.
 
 ## Commands
+
+The original commands and options remain supported: no arguments or `setup` installs model sync; `sync` refreshes once, `watch` runs foreground refreshes, `status` reports state, and `uninstall` restores the previous setup. Default/setup/sync/watch do not install, enable, disable or update a separately configured router. `--no-router` remains accepted for existing scripts, although setup is already sync-only. Release 0.4.0 also installed the router by default; 0.4.1 restores the original behavior. An already installed router stays in its chosen state; use `router disable` to stop routing while keeping model sync.
 
 ```sh
 npx -y codex-model-sync
@@ -118,7 +120,23 @@ Source modules separate configuration, catalog construction, synchronization, an
 
 ## Auto Router
 
-`npx -y codex-model-sync` installs model synchronization and Auto Router together on macOS.
+Model synchronization and routing have separate entry points. Keep using the original command for synchronization:
+
+```sh
+npx -y codex-model-sync
+```
+
+Opt into Auto Router once on macOS:
+
+```sh
+npx -y codex-model-sync router setup
+```
+
+Fully quit and reopen the desktop app once after setup; review the four Auto Router hooks in Codex `/hooks`. No special prompt prefix, slash command or model-picker item is required. Sending a new message in a project starts a turn: the bridge assesses the task and project manifests, fetches the configured provider's models, selects a sufficient capability tier, ranks within it, and forwards the selected model to App Server. A native notice reports the accepted model. `跑起来看看` with a discovered entry, ordinary Git operations, and complex development follow their respective tiers.
+
+Routing runs before eligible `turn/start` requests through this installed stdio bridge. Tool output, steering an already active turn and normal terminal `codex` sessions do not trigger a main-model switch. Hooks supply CLI context and specialist guidance; they cannot switch an already running model. This implementation uses local task rules and estimated model profiles, not a trained RouterLLM classifier.
+
+`router enable` / `router disable` change an installed router's policy for subsequent turns; `enable` alone does not install the desktop bridge. While routing is enabled it chooses the turn model automatically, overriding the picker selection. Disable it for manual model choice; synchronization continues independently. `router preview` is a dry run of model selection, not task execution, and reads models from the provider.
 The router reads **all model IDs from Codex's configured provider `/v1/models`** on every turn.
 There is no GPT-family allowlist. GLM, DeepSeek, Kimi, Gemma, private models and future additions all enter the same inventory.
 
