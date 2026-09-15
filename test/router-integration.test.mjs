@@ -54,19 +54,15 @@ console.log(JSON.stringify({id:m.id,result})); }
     }
   });
   await call('thread/start', {});
-  return { home, remote, call, messages };
+  const finish = async () => {
+    const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) });
+    child.stdin.end();
+    const [code] = await exited;
+    assert.equal(code, 0, stderr);
+  };
+  return { home, remote, call, messages, finish };
 }
 const params = text => ({ threadId: 't', model: 'gpt-6-astra', input: [{ type: 'text', text }], approvalPolicy: 'never' });
-
-async function planningStatus(home, model) {
-  // The bridge intentionally persists status asynchronously, without delaying RPC responses.
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const state = await readJson(join(home, 'model-router/status.json'), {});
-    if (state.planning?.executor.model === model) return state;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-  assert.fail('Planning status was not persisted');
-}
 
 test('live planning preferences route the main turn while reporting the worker only as a candidate', async t => {
   const f = await fixture(t);
@@ -78,13 +74,15 @@ test('live planning preferences route the main turn while reporting the worker o
   assert.equal(result.result.seen.approvalPolicy, 'never');
   assert.deepEqual(result.result.seen.input, params('设计并重构复杂模块').input);
   assert.ok(f.messages.some(m => /执行候选：fixture\/worker.*尚未创建/.test(m.params?.message || '')));
-  let state = await planningStatus(f.home, 'fixture/worker');
-  assert.equal(state.planning.executorStatus, 'recommended');
-  assert.equal(state.eligibleCount, 3);
   f.remote.ids = ['fixture/planner', 'fixture/strong', 'fixture/new-worker'];
   f.remote.profiles['fixture/new-worker'] = { capability: 78, economy: 92 };
   await f.call('turn/start', params('继续设计复杂模块'));
-  state = await planningStatus(f.home, 'fixture/new-worker');
+  assert.ok(f.messages.some(m => /执行候选：fixture\/new-worker.*尚未创建/.test(m.params?.message || '')));
+  // Finish flushes queued status writes. Avoid racing Windows atomic rename with polling reads.
+  await f.finish();
+  const state = await readJson(join(f.home, 'model-router/status.json'));
+  assert.equal(state.planning.executorStatus, 'recommended');
+  assert.equal(state.eligibleCount, 3);
   assert.equal(state.planning.executor.model, 'fixture/new-worker');
   assert.equal(state.planning.executor.preferredAvailable, false);
 });
