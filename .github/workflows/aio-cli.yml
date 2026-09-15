@@ -42,10 +42,10 @@ jobs:
       - run: npm install --global npm@11
       - run: npm ci
       - name: 准备源码绑定的发布版本
-        run: npx -y @zjarlin/aio@2026.9.16 tool release prepare
+        run: npx -y @zjarlin/aio@2026.9.17 tool release prepare
       - run: npm test
       - run: npm run build --if-present
       - name: 验证安装包并发布 npm
-        run: npx -y @zjarlin/aio@2026.9.16 tool release publish
+        run: npx -y @zjarlin/aio@2026.9.17 tool release publish
       - name: 同步 AIO 插件市场
-        run: npx -y @zjarlin/aio@2026.9.16 tool release sync
+        run: npx -y @zjarlin/aio@2026.9.17 tool release sync
