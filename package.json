@@ -1,13 +1,14 @@
 {
   "name": "codex-model-sync",
-  "version": "0.1.4",
-  "description": "One-command Codex model catalog setup and automatic sync from your configured OpenAI-compatible provider.",
+  "version": "0.2.0",
+  "description": "Dynamic Codex model discovery and task-aware Auto Router using your configured provider.",
   "type": "module",
   "bin": {
     "codex-model-sync": "dist/cli.mjs"
   },
   "files": [
     "dist/cli.mjs",
+    "dist/router.mjs",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"

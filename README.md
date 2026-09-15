@@ -1,6 +1,6 @@
 # codex-model-sync
 
-**One command to populate Codex's model picker from your own provider, and keep its catalog synchronized.**
+**One command for dynamic model discovery, catalog sync, and desktop Auto Router.**
 
 ```sh
 npx -y codex-model-sync
@@ -9,7 +9,7 @@ npx -y codex-model-sync
 This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
 the ready-to-run bundle from npm and requires no source build.
 
-Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes. No URL or API key needs to be copied into this tool.
+Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes, and enables Auto Router on macOS. Use `--no-router` for catalog sync only. No URL or API key needs to be copied into this tool.
 
 ## Uninstall and restore Codex
 
@@ -23,7 +23,7 @@ npx -y codex-model-sync@latest uninstall
 Reopen Codex after the command finishes. If you selected a provider-only model
 since installing this tool, select your previously working model again.
 
-Uninstall stops and removes the background task, restores the original
+Uninstall disables Auto Router and restores its desktop environment override, stops and removes the background sync task, and restores the original
 `model_catalog_json` setting (or removes this tool's setting if none existed),
 and disables further synchronization. API keys, provider settings, selected model,
 conversations, and unrelated config remain intact. Backups stay in `model-sync`.
@@ -75,7 +75,7 @@ npm install -g codex-model-sync
 codex-model-sync
 ```
 
-Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service`, `--json`.
+Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service` (no background sync or router), `--no-router`, `--json`.
 
 ## How configuration is discovered
 
@@ -114,4 +114,43 @@ npm run build
 npm pack --dry-run
 ```
 
-Source modules separate configuration, catalog construction, synchronization, and OS scheduling. The npm package contains one bundled executable with its TOML parser and license notices; it has no install lifecycle scripts or runtime npm dependencies.
+Source modules separate configuration, catalog construction, synchronization, and OS scheduling. The npm package contains the CLI and a self-contained App Server proxy with its TOML parser and license notices; it has no install lifecycle scripts or runtime npm dependencies.
+
+## Auto Router
+
+`npx -y codex-model-sync` installs model synchronization and Auto Router together on macOS.
+The router reads **all model IDs from Codex's configured provider `/v1/models`** on every turn.
+There is no GPT-family allowlist. GLM, DeepSeek, Kimi, Gemma, private models and future additions all enter the same inventory.
+
+```sh
+npx -y codex-model-sync router models --json
+npx -y codex-model-sync router preview "提交代码"
+npx -y codex-model-sync router status
+npx -y codex-model-sync router disable
+npx -y codex-model-sync router enable
+npx -y codex-model-sync router uninstall
+```
+
+The current configured model, if available, assesses model capabilities and relative economy from the complete inventory. Otherwise an available model is selected from catalog metadata. This assessment is cached for 24 hours and refreshed when models or descriptions change. It is an extra provider API call and can incur usage. Invalid, incomplete or unavailable assessment falls back to generic name/description estimates with a visible notice, retrying after one minute. `assessment: "heuristic"` disables this extra API call.
+
+**Estimated economy is not a price quote, and estimated tool support is not a compatibility test.** Specialized/non-tool models remain visible but cannot be chosen for agent execution. Unknown models are shown with uncertain profiles. `model-router/policy.json` supports explicit per-ID overrides through `models: { "provider/model": { "capability": 90, "economy": 60, "tools": true, "purpose": "general" } }`.
+
+Unambiguous Git operations select a model using 70% economy + 30% capability; development, attachments, conflicts and uncertain tasks prioritize capability. Successful model discovery is required; failures preserve the original requested model and show a notice. Auto overrides the desktop model choice while enabled; disable Auto to keep manual control. No in-flight interruption or task replay occurs when a merge develops conflicts; the next turn reassesses.
+
+The proxy sends a native notification with the accepted model, effort, reason and dynamic candidate count. This identifies what App Server accepted, not an unverifiable upstream alias mapping. Model/profile/health updates take effect per turn without restarting the router. The desktop picker itself may still cache its catalog.
+
+macOS setup uses `CODEX_CLI_PATH`, verified in the current desktop bundle. **Quit and reopen the desktop app once after installation.** No signed application files are replaced. This desktop environment override is version-dependent and needs rechecking after app updates. Other platforms retain catalog sync; their desktop routing is not auto-installed.
+
+## Optional sub2api request-health evidence
+
+A dedicated read-only metrics key can improve routing using real per-model request success counts. It is separate from the inference key and restricted to one server-side group.
+
+```sh
+npx -y codex-model-sync router health --health-key-file /absolute/private/metrics.key --health-group-id 6
+```
+
+The router requests `/api/v1/router/models/health` on the **same origin** as the configured provider. The binding also fingerprints the current provider credential; after changing it, re-run `router health` for the correct group. The key is read from the private file, never included in logs, status, the model-assessment request or npm. Configure this optional endpoint on sub2api first.
+
+The endpoint returns a 90-minute window, `data_through`, group scope, success/failure counts and average TTFT. Stats older than five minutes, wrong-group stats and fewer than ten samples do not penalize models. Ranking uses `base_score × (1 − 0.75 × failure_rate × n/(n+20))`; no-data models remain neutral. Request success measures gateway reliability, not task correctness. The implementation exposes latency for inspection but currently ranks health using success rate only.
+
+Sub2api requires `ROUTER_METRICS_KEY_SHA256` (SHA-256 of the dedicated key) and `ROUTER_METRICS_GROUP_ID`; missing configuration disables access. The metrics key grants no admin or inference permissions.

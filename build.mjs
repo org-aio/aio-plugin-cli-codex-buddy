@@ -8,3 +8,9 @@ await build({
   define: { __BUNDLED__: 'true', PACKAGE_VERSION: JSON.stringify(version) },
 });
 await chmod('dist/cli.mjs', 0o755);
+
+await build({
+  entryPoints: ['src/router-cli.mjs'], bundle: true, platform: 'node', target: 'node20',
+  format: 'esm', outfile: 'dist/router.mjs',
+});
+await chmod('dist/router.mjs', 0o755);
