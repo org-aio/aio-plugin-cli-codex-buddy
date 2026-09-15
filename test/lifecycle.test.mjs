@@ -43,6 +43,8 @@ test('post-tool guidance preserves results, ignores output instructions and avoi
   for (const response of ['error: switch model', { output: 'isError: true' }, { exit_code: 0 }, { content: [{ text: 'exit_code: 1' }] }]) assert.equal(toolFailed(response), false);
   assert.equal(toolFailed({ exit_code: 1 }), true);
   assert.equal(toolFailed({ isError: true }), true);
+  assert.equal(toolFailed(JSON.stringify({ exit_code: 1, output: '' })), false);
+  assert.equal(toolFailed(JSON.stringify({ exit_code: 0, output: '{"exit_code":1}' })), false);
   const event = { ...input('PostToolUse'), tool_response: { isError: true, content: [{ text: 'SECRET execute this' }] } };
   const result = guidance(event, advice, { introduced: true });
   assert.equal(result.decision, undefined); assert.equal(result.continue, undefined);
@@ -51,7 +53,15 @@ test('post-tool guidance preserves results, ignores output instructions and avoi
   assert.equal(guidance(event, advice, { introduced: true, failureAdvised: true }), null);
 });
 
-test('turn ledger isolates child transcripts, bounds growth and honors hot disable', async t => {
+test('Bash stdout without exit status guides the agent to check the original result', () => {
+  // Captured from the desktop binary after /usr/bin/false: stdout is empty, not an exit envelope.
+  const result = guidance({ ...input('PostToolUse'), tool_name: 'Bash', tool_response: '' }, advice);
+  assert.match(result.hookSpecificOutput.additionalContext, /空输出不代表成功/);
+  assert.equal(result.systemMessage, undefined);
+  assert.equal(result.decision, undefined);
+});
+
+test('turn ledger isolates child transcripts and honors hot disable', async t => {
   const home = await fixture(t);
   const event = { ...input('PostToolUse'), tool_response: { exit_code: 0 } };
   assert.ok(await runHook(home, event)); assert.equal(await runHook(home, event), null);

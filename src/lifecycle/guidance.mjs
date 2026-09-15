@@ -5,7 +5,8 @@ const context = (event, text, systemMessage) => ({
 });
 
 export function toolFailed(response) {
-  // Tool output text is untrusted data, never a routing instruction or error flag.
+  // Bash can provide stdout alone, without exit status. Never interpret stdout
+  // (including JSON printed by the command) as an authoritative result envelope.
   if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
   return response.isError === true || (Number.isInteger(response.exit_code) && response.exit_code !== 0);
 }
@@ -30,7 +31,8 @@ export function guidance(input, advice, state = {}) {
   const failed = toolFailed(input.tool_response);
   if (state.introduced && (!failed || state.failureAdvised)) return null;
   return context(event,
-    `${selection}${boundary}` + (failed
+    `${selection}${boundary}` + (input.tool_name === 'Bash' && typeof input.tool_response === 'string'
+      ? '此客户端的 Bash Hook 只提供标准输出，无法据此判断退出码。请结合你收到的原始工具结果检查退出码和真实执行状态；空输出不代表成功。' : '') + (failed
       ? '本次工具报告非零退出或结构化错误。先核实它是否表示预期结果（例如搜索无匹配），再区分权限、网络、环境与代码问题。确认是复杂度上升或反复失败时，向父代理交接证据并建议高级模型处理；更换模型不会修复权限或网络。先核实已有副作用，禁止盲目重放提交、推送、发布等操作。'
       : '执行后依据真实结果重新评估难度：简单操作出现业务冲突或需要改代码时，按复杂任务处理。不要仅因调用了工具就升级模型。'),
     failed ? `${active}；工具异常信号，建议重新评估任务难度（未切换模型）。` : undefined);

@@ -135,6 +135,8 @@ Setup also installs `SubagentStart`, `SubagentStop`, and `PostToolUse` guidance 
 
 `SubagentStart` announces the actual model and asks the child to hand back results, verification and blockers. `PostToolUse` offers simple/advanced model suggestions once per turn, with one extra reminder for a structured tool error; it preserves the original result. `SubagentStop` requests one summary if the child ends with no final message, respecting `stop_hook_active` to prevent loops. A non-zero exit is a signal to investigate, not proof of model failure (for example, search exit 1 can simply mean no matches).
 
+The tested desktop binary can send **only stdout** to a Bash hook, omitting the exit code. In that case guidance explicitly asks the agent to inspect its original tool result; the hook does not infer success from empty output or interpret JSON printed by a command as an error flag.
+
 These hooks **guide** model selection; they cannot change the model of an already running agent. A parent may choose a suggested model when creating an independently useful child task only if existing instructions permit delegation and the tool supports the relevant model/fork parameters. No hook creates agents, grants permission, replays operations, or claims a switch happened. Hook suggestions reuse the turn router's five-minute provider-bound snapshot, including fresh sub2api health weighting, and make no additional API calls. Missing/stale advice falls back to the current model. Only bounded hashed turn bookkeeping is stored, without prompts or tool output.
 
 ```bash
