@@ -14,7 +14,7 @@ async function fixture(t) {
   const remote = { ids: ['gpt-5.6-luna', 'gpt-6-astra'], code: 200, delay: 0 };
   const server = createServer((req, res) => setTimeout(() => {
     const profiles = remote.ids.map(id => ({ id, capability: id.includes('luna') || id.includes('flash') ? 50 : 90, economy: id.includes('luna') || id.includes('flash') ? 90 : 40, tools: true, purpose: 'general' }));
-    const body = req.url.endsWith('/responses') ? { output_text: JSON.stringify({ models: profiles }) } : { data: remote.ids.map(id => ({ id })) };
+    const body = req.url.endsWith('/responses') ? { output_text: remote.assessmentFails ? 'invalid assessment' : JSON.stringify({ models: profiles }) } : { data: remote.ids.map(id => ({ id })) };
     res.writeHead(remote.code, { 'content-type': 'application/json' }).end(JSON.stringify(body));
   }, remote.delay));
   await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -84,4 +84,15 @@ test('existing merge state upgrades a simple Git request', async t => {
   await writeFile(join(f.home, '.git', 'MERGE_HEAD'), head + '\n');
   const r = await f.call('turn/start', params('提交代码'));
   assert.equal(r.result.seen.model, 'gpt-6-astra');
+});
+
+
+test('a failed inventory reassessment preserves known profiles and quarantines new unknown models', async t => {
+  const f = await fixture(t);
+  await f.call('turn/start', params('提交代码'));
+  f.remote.ids.push('private-tiny-flash');
+  f.remote.assessmentFails = true;
+  const r = await f.call('turn/start', params('提交代码'));
+  assert.equal(r.result.seen.model, 'gpt-5.6-luna');
+  assert.ok(f.messages.some(m => m.params?.message?.includes('保留已有评估')));
 });

@@ -30,7 +30,7 @@ export function classify(input) {
 }
 
 export function selectModel(profiles, policy, assessment, fallback, metadata = []) {
-  const available = profiles.filter(item => item.purpose !== 'specialized' && item.tools !== false && !item.disabled);
+  const available = profiles.filter(item => item.purpose === 'general' && item.tools === true && !item.disabled);
   if (!available.length) throw new Error('实时列表中没有可用于代理任务的模型。');
   const rank = item => (assessment.tier === 'simple'
     ? item.economy * 0.7 + item.capability * 0.3

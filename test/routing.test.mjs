@@ -44,3 +44,9 @@ test('keeps permissions, input, and collaboration instructions intact', () => {
   assert.deepEqual(changed.input, p.input);
   assert.equal(p.model, 'large');
 });
+test('unknown tool compatibility cannot execute a task during assessment failure', () => {
+  const unknown = { ...estimateProfile({ id: 'tiny-4b' }), economy: 100 };
+  const known = { ...profile('previously-assessed', 70, 70), source: 'model-estimate' };
+  assert.equal(selectModel([unknown, known], defaultPolicy, { tier: 'simple' }).model, known.id);
+  assert.throws(() => selectModel([unknown], defaultPolicy, { tier: 'simple' }));
+});
