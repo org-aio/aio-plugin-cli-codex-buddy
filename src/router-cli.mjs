@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { spawnCommand } from './runtime/process.mjs';
 import { homePath } from './config/index.mjs';
 import { findBinary } from './runtime/binary.mjs';
 import { bridge } from './bridge/index.mjs';
@@ -28,7 +28,7 @@ try {
       && !args.some((arg, i) => (arg === '--listen' && args[i + 1] !== 'stdio://') || (arg.startsWith('--listen=') && arg !== '--listen=stdio://'));
     if (isStdio) process.exitCode = await bridge({ binary, args, home });
     else {
-      const child = spawn(binary, args, { stdio: 'inherit' });
+      const child = spawnCommand(binary, args, { stdio: 'inherit' });
       process.exitCode = await new Promise(resolve => {
         child.once('exit', code => resolve(code ?? 1));
         child.once('error', () => resolve(1));

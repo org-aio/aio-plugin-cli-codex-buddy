@@ -5,6 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
   release:
+    timeout-minutes: 15
     types: [published]
 
 permissions:
@@ -12,6 +13,7 @@ permissions:
 
 jobs:
   test:
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:

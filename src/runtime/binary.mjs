@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { dirname, join, resolve, delimiter } from 'node:path';
-import { command, environmentPath } from './index.mjs';
+import { command } from './index.mjs';
+import { environmentPath } from './process.mjs';
 
 const npmLauncher = directory => join(directory, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
 

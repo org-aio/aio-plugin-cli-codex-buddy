@@ -7,3 +7,5 @@
 Project fixtures cover manifest discovery without script execution, inherited workspace CLIs, Kotlin application modules, prompt-submit hints, specialist ownership migration, and model selection through the packaged App Server bridge.
 
 Legacy default/setup CLI integration tests isolate the OS scheduler and confirm that synchronization never installs a router or changes an existing router policy.
+
+Windows 回归验证命令执行和长驻子进程都能运行带空格的 JS 路径；bridge 清理识别已经退出的进程并限定等待时间，hook 安装测试遵循 POSIX 支持边界。

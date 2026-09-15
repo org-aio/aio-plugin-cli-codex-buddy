@@ -39,7 +39,19 @@ console.log(JSON.stringify({id:m.id,result})); }
     waiters.set(requestId, m => { clearTimeout(timer); resolve(m); });
     child.stdin.write(JSON.stringify({ id: requestId, method, params }) + '\n');
   });
-  t.after(async () => { const exited = once(child, 'exit'); child.kill(); await exited; server.closeAllConnections(); await new Promise(r => server.close(r)); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => {
+    try {
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) });
+        child.kill();
+        await exited;
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise(r => server.close(r));
+      await rm(home, { recursive: true, force: true });
+    }
+  });
   await call('thread/start', {});
   return { home, remote, call, messages };
 }

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawnCommand } from '../runtime/process.mjs';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { atomicWrite } from '../runtime/index.mjs';
@@ -7,7 +7,7 @@ import { rewriteTurn, notice } from './protocol.mjs';
 
 // A transparent stdio bridge: preserve IDs, server requests, approvals and all unknown methods.
 export async function bridge({ binary, args, home, input = process.stdin, output = process.stdout, error = process.stderr }) {
-  const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CODEX_HOME: home } });
+  const child = spawnCommand(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CODEX_HOME: home } });
   const threads = new Map();
   const pending = new Map();
   const active = new Set();

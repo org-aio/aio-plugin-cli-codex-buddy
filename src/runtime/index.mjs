@@ -2,22 +2,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile, rename, mkdir, rm, stat } from 'node:fs/promises';
-import { dirname, join, delimiter } from 'node:path';
+import { dirname, join } from 'node:path';
+import { processArguments } from './process.mjs';
 
 const exec = promisify(execFile);
 
-export const environmentPath = env => Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] || '';
-
 export async function command(binary, args, options = {}) {
   try {
-    // 登录任务的 PATH 通常没有 npm/Node；让已有 JS 可执行文件使用当前运行时。
-    const environment = options.env || process.env;
-    const env = Object.fromEntries(Object.entries(environment).filter(([key]) => key.toLowerCase() !== 'path'));
-    env.PATH = dirname(process.execPath) + delimiter + environmentPath(environment);
-    const script = /\.[cm]?js$/i.test(binary);
-    const executable = script ? process.execPath : binary;
-    const argumentsList = script ? [binary, ...args] : args;
-    const { stdout } = await exec(executable, argumentsList, { timeout: 30000, maxBuffer: 24 * 1024 * 1024, ...options, env });
+    const { stdout } = await exec(...processArguments(binary, args, { timeout: 30000, maxBuffer: 24 * 1024 * 1024, ...options }));
     return stdout;
   } catch (error) {
     const failure = new Error(`Command failed (${typeof error.code === 'number' ? `exit ${error.code}` : error.code || 'timeout'}).`);

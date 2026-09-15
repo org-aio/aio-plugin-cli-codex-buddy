@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { command } from '../src/runtime/index.mjs';
+import { once } from 'node:events';
+import { spawnCommand } from '../src/runtime/process.mjs';
 import { findBinary } from '../src/runtime/binary.mjs';
 
 test('JavaScript launchers run without shell parsing, including paths and arguments with spaces', async t => {
@@ -13,6 +15,12 @@ test('JavaScript launchers run without shell parsing, including paths and argume
   await writeFile(binary, 'console.log(JSON.stringify(process.argv.slice(2)))');
   const args = ['a b', 'literal & command', 'a"b', 'C:\\path with spaces\\'];
   assert.deepEqual(JSON.parse(await command(binary, args)), args);
+  const child = spawnCommand(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', data => output += data);
+  const [code] = await once(child, 'close', { signal: AbortSignal.timeout(5000) });
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(output), args);
 });
 
 test('npm Codex .cmd shims resolve to the package launcher', async t => {
