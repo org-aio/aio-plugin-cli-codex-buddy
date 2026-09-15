@@ -14,3 +14,8 @@ await build({
   format: 'esm', outfile: 'dist/router.mjs',
 });
 await chmod('dist/router.mjs', 0o755);
+
+await build({
+  entryPoints: ['src/hook-cli.mjs'], bundle: true, platform: 'node', target: 'node20',
+  format: 'esm', outfile: 'dist/hooks.mjs',
+});

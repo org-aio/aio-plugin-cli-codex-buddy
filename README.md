@@ -131,6 +131,20 @@ npx -y codex-model-sync router enable
 npx -y codex-model-sync router uninstall
 ```
 
+Setup also installs `SubagentStart`, `SubagentStop`, and `PostToolUse` guidance hooks, preserving any existing hooks (including `Stop`). Review the three Auto Router definitions in Codex `/hooks` before they execute. Changed hook code gets a new content-addressed script path so Codex requests trust again. The installer never grants trust or bypasses review.
+
+`SubagentStart` announces the actual model and asks the child to hand back results, verification and blockers. `PostToolUse` offers simple/advanced model suggestions once per turn, with one extra reminder for a structured tool error; it preserves the original result. `SubagentStop` requests one summary if the child ends with no final message, respecting `stop_hook_active` to prevent loops. A non-zero exit is a signal to investigate, not proof of model failure (for example, search exit 1 can simply mean no matches).
+
+These hooks **guide** model selection; they cannot change the model of an already running agent. A parent may choose a suggested model when creating an independently useful child task only if existing instructions permit delegation and the tool supports the relevant model/fork parameters. No hook creates agents, grants permission, replays operations, or claims a switch happened. Hook suggestions reuse the turn router's five-minute provider-bound snapshot, including fresh sub2api health weighting, and make no additional API calls. Missing/stale advice falls back to the current model. Only bounded hashed turn bookkeeping is stored, without prompts or tool output.
+
+```bash
+npx -y codex-model-sync router hooks setup
+npx -y codex-model-sync router hooks status
+npx -y codex-model-sync router hooks uninstall
+```
+
+`router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes only this package's hook commands. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
+
 An available assessment model is selected from catalog capability descriptions and reused after successful assessments. It evaluates model capabilities and relative economy from the complete inventory. This assessment is cached for 24 hours and refreshed when models or descriptions change. It is an extra provider API call and can incur usage. Invalid, incomplete or unavailable assessment retains previous valid profiles, shows new models as uncertain name/description estimates, and retries after one minute. Uncertain new models do not execute tasks. `assessment: "heuristic"` disables this extra API call.
 
 **Estimated economy is not a price quote, and estimated tool support is not a compatibility test.** Specialized/non-tool models remain visible but cannot be chosen for agent execution. Unknown models are shown with uncertain profiles and wait for assessment or an explicit user override before executing tasks. If no eligible model remains, the original request is preserved with a notice. `model-router/policy.json` supports explicit per-ID overrides through `models: { "provider/model": { "capability": 90, "economy": 60, "tools": true, "purpose": "general" } }`.

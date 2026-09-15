@@ -14,7 +14,7 @@ setup       Sync models, install background sync and desktop Auto Router (defaul
 sync        Sync once; read the current provider and API key again
 watch       Sync repeatedly in the foreground
 status      Show synchronization and Auto Router status
-router      setup|status|models|preview PROMPT|enable|disable|health|uninstall
+router      setup|status|models|preview PROMPT|enable|disable|health|hooks|uninstall
 uninstall   Remove the background task and restore the prior catalog setting
 
 --home PATH       Codex directory (default: CODEX_HOME or ~/.codex)
@@ -82,6 +82,7 @@ try {
         if (result.service) console.log(`Automatic sync installed: every ${interval / 60} minutes.`);
         if (result.router) console.log(result.router.installed ? `Auto Router installed: ${result.router.modelCount ?? 'dynamic'} provider models. Use router models/status/disable to inspect or control it.` : result.router.reason);
         if (result.router?.assessmentWarning) console.log(result.router.assessmentWarning);
+        if (result.router?.hooks?.installed) console.log('Lifecycle guidance installed. Review the three Auto Router hooks in Codex /hooks to enable execution.');
         console.log('Restart running Codex clients to reload the model picker.');
       }
     }

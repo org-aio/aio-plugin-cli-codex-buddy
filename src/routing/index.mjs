@@ -8,6 +8,7 @@ import { normalizePolicy, classify, selectModel } from './policy.mjs';
 
 import { loadHealth } from './health.mjs';
 import { inventory } from './inventory.mjs';
+import { saveAdvice } from '../lifecycle/advice.mjs';
 
 const exec = promisify(execFile);
 
@@ -44,6 +45,7 @@ export async function routeTurn(home, params, thread = {}) {
   const [discovered, health] = await Promise.all([inventory(home, connection, listing, metadata, policy), loadHealth(connection, policy.health)]);
   discovered.models = discovered.models.map(m => ({ ...m, health: health.models.find(h => h.id === m.id) || null }));
   discovered.healthStatus = health.status;
+  await saveAdvice(home, connection, discovered, health).catch(() => {});
   if (params.inventoryOnly) return discovered;
   const assessment = await assess(params.input, params.cwd || thread.cwd);
   return { ...selectModel(discovered.models, policy, assessment, connection.config.model, metadata), healthStatus: health.status, inventoryWarning: discovered.warning };
