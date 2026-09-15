@@ -261,3 +261,7 @@ The router requests `/api/v1/router/models/health` on the **same origin** as the
 The endpoint returns a 90-minute window, `data_through`, group scope, success/failure counts and average TTFT. Stats older than five minutes, wrong-group stats and fewer than ten samples do not penalize models. Ranking **inside the selected capability tier** uses `base_score × (1 − 0.75 × failure_rate × n/(n+20))`; no-data models remain neutral. Request success measures gateway reliability, not task correctness or capability. The implementation exposes latency for inspection but currently ranks health using success rate only.
 
 Sub2api requires `ROUTER_METRICS_KEY_SHA256` (SHA-256 of the dedicated key) and `ROUTER_METRICS_GROUP_ID`; missing configuration disables access. The metrics key grants no admin or inference permissions.
+
+## AIO marketplace delivery
+
+This CLI is connected through `aio plugin init --kind cli --adopt`. After one-time npm Trusted Publisher setup, default-branch pushes run tests, publish an immutable `next` development version, and update the existing AIO marketplace entry and README. Matching version tags publish `latest` stable releases. The existing model-sync command and explicit `router setup` behavior are unchanged. See [AIO delivery](AIO.md) for setup and version rules.

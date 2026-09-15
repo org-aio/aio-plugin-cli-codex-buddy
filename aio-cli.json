@@ -1,0 +1,16 @@
+{
+  "id": "codex-model-sync",
+  "title": "Codex 模型同步与 Auto Router",
+  "command": "codex-model-sync",
+  "platforms": [
+    "macos",
+    "linux",
+    "windows"
+  ],
+  "setup": [
+    "setup"
+  ],
+  "uninstall": [
+    "uninstall"
+  ]
+}
