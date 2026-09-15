@@ -118,6 +118,55 @@ npm pack --dry-run
 
 Source modules separate configuration, catalog construction, synchronization, and OS scheduling. The npm package contains the CLI and a self-contained App Server proxy with its TOML parser and license notices; it has no install lifecycle scripts or runtime npm dependencies.
 
+## Publishing and npm authentication
+
+This section is for maintainers publishing new versions. Running `npx -y codex-model-sync` as a user does not require an npm publishing token. npm credentials are separate from the Codex provider API key and the optional sub2api metrics key.
+
+### Why npm asks for verification on every publish
+
+An interactive login credential can still require a fresh 2FA challenge for each `npm publish`. Having an `_authToken` entry in `.npmrc`, or having created another token on the account, does not prove the current publish uses an eligible automation token. `--auth-type=web` selects the interactive authentication method; changing it is not a substitute for publishing permissions.
+
+To diagnose repeated prompts, check the effective npm configuration and token metadata locally:
+
+- Which credential is actually used: project/user npm configuration and any environment substitution. An exported `NPM_TOKEN` alone is not automatically connected to registry authentication.
+- Whether that token is unexpired, covers this package, has **Read and write (publish and stage)** permission, and has **Bypass 2FA** enabled. Stage-only tokens require a separate approval before a version becomes public.
+- Whether the package's **Publishing access** setting permits granular tokens. **Require two-factor authentication and disallow tokens** blocks traditional tokens even when their bypass option is enabled.
+
+`npm profile get` and `npm token list` can help inspect account/token metadata; do not paste credentials or unredacted configuration into issues or logs. Full token values are only shown when created, so an existing token's name cannot be used to recover its secret. See [npm publishing authentication](https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/) and [creating and viewing tokens](https://docs.npmjs.com/creating-and-viewing-access-tokens/).
+
+### Recommended: GitHub Actions trusted publishing (OIDC)
+
+OIDC lets an authorized GitHub Actions workflow publish without a stored, long-lived npm token. Configure the package's **Trusted Publisher** on npmjs.com with:
+
+| Field | Value for this repository |
+| --- | --- |
+| Provider | GitHub Actions |
+| Organization or user | `zjarlin` |
+| Repository | `codex-model-sync` |
+| Workflow filename | `publish.yml` (must exist in `.github/workflows/`) |
+| Environment | Match the workflow's environment exactly, or leave unset if unused |
+| Allowed actions | Enable direct **`npm publish`** for unattended releases |
+
+The workflow must use a GitHub-hosted runner, grant `contents: read` and `id-token: write`, and use npm **11.5.1+** with Node **22.14.0+**. It should install dependencies, run `npm test`, and then run `npm publish --access public`; keep `package.json`'s repository URL aligned with this repository. No `NPM_TOKEN` publishing secret is needed for OIDC. Trigger releases deliberately, for example with a version tag after updating `package.json` and `package-lock.json`.
+
+New trusted publishers allow staging by default. If only **`npm stage publish`** is allowed, a maintainer must still approve each staged version with 2FA; explicitly allow direct publishing to avoid that per-release step. Initial trust configuration may itself require account verification. See the [official OIDC setup and workflow example](https://docs.npmjs.com/trusted-publishers/).
+
+**Repository status:** `.github/workflows/check.yml` currently checks and packages the CLI; it does not publish. The `publish.yml` settings above describe how to add publishing, not an already configured workflow or npm trust relationship.
+
+### Alternative: a granular publishing token
+
+For a token-based workflow, create a package-scoped token with the permissions described above, store its full value in a GitHub Actions secret, and expose it to the publishing step as `NODE_AUTH_TOKEN` when using `actions/setup-node` with `registry-url: https://registry.npmjs.org`. Rotate it before its configured expiry.
+
+For local publishing, provide the token through the environment and reference it in a private npm user configuration rather than placing the literal secret in the repository:
+
+```ini
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+```
+
+Then run `npm publish --access public`. Preserve other npm configuration entries; do not overwrite the entire user configuration or print the token. This only avoids the publish challenge when the token and package settings allow it.
+
+As documented by npm in September 2026, direct publishing of new versions with granular access tokens is scheduled to be removed in **January 2027**. Prefer OIDC for new unattended release workflows; stage-only tokens retain an explicit human approval step. See [npm's token publishing transition](https://docs.npmjs.com/about-access-tokens/#direct-publishing-is-being-deprecated).
+
 ## Auto Router
 
 Model synchronization and routing have separate entry points. Keep using the original command for synchronization:
