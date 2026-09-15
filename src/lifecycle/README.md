@@ -1,7 +1,7 @@
 # Lifecycle guidance
 
-Three Codex command hooks provide model-aware guidance without rewriting tool output or agent parameters. `guidance.mjs` owns the event contracts, `index.mjs` deduplicates advice, `advice.mjs` reads the turn router's credential-bound snapshot, and `install.mjs` manages only this package's hook definitions.
+Four Codex command hooks provide model-aware guidance without rewriting tool output or agent parameters. `guidance.mjs` owns the subagent/tool contracts, `index.mjs` dispatches Git prompt guidance and deduplicates tool advice, `advice.mjs` reads the turn router's credential-bound snapshot, and `install.mjs` manages this package's hook definitions and Git profile.
 
-SubagentStart announces the actual model and requests evidence in the final handoff. PostToolUse offers delegation guidance once per turn plus one structured-failure reminder. SubagentStop requests a summary only for an empty final message and never continues twice. These hooks cannot switch an active agent's model; the parent must select a supported model when creating a permitted child task.
+UserPromptSubmit detects Git intent before the first tool and prefers an existing suitable Git agent. SubagentStart announces the actual model and requests evidence in the final handoff. PostToolUse offers delegation guidance once per turn plus one structured-failure reminder. SubagentStop requests a summary only for an empty final message and never continues twice. These hooks cannot switch an active agent's model; the parent must select a supported model when creating a permitted child task.
 
 Hooks make no network/model calls. Advice expires after five minutes and health weighting expires with its source data. No prompt, transcript contents, commands, results or credentials are persisted. Installation preserves other hooks, uses content-addressed scripts to require fresh trust after code changes, and never edits Codex's trust store.

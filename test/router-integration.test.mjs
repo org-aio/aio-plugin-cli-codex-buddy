@@ -96,3 +96,12 @@ test('a failed inventory reassessment preserves known profiles and quarantines n
   assert.equal(r.result.seen.model, 'gpt-5.6-luna');
   assert.ok(f.messages.some(m => m.params?.message?.includes('保留已有评估')));
 });
+
+test('an advanced task is not forwarded when only weak models are live', async t => {
+  const f = await fixture(t);
+  f.remote.ids = ['private-flash'];
+  const result = await f.call('turn/start', params('解决代码冲突'));
+  assert.equal(result.error.code, -32000);
+  assert.match(result.error.message, /advanced/);
+  assert.equal(result.result, undefined);
+});

@@ -3,6 +3,7 @@ import { readJson, atomicWrite } from '../runtime/index.mjs';
 import { readConnection } from '../config/index.mjs';
 import { connectionBinding } from '../routing/health.mjs';
 import { selectModel } from '../routing/policy.mjs';
+import { modelTier } from '../routing/tiers.mjs';
 
 // Advisory snapshot only: discovery and metrics requests belong to the turn router.
 export async function saveAdvice(home, connection, discovered, health) {
@@ -23,7 +24,8 @@ export async function loadAdvice(home, policy) {
     const freshHealth = policy.health?.providerBinding === snapshot.binding && policy.health.groupId === snapshot.healthGroup && healthAge >= -60000
       && healthAge <= (policy.health.maxAgeSeconds ?? 300) * 1000;
     const models = snapshot.models.map(m => ({ ...m, ...policy.models?.[m.id], id: m.id, health: freshHealth ? m.health : null }));
-    const choice = tier => selectModel(models, policy, { tier }, connection.config.model).model;
-    return { simple: choice('simple'), advanced: choice('advanced') };
+    const choice = tier => { try { return selectModel(models, policy, { tier }, connection.config.model).model; } catch { return null; } };
+    return { simple: choice('simple'), standard: choice('standard'), advanced: choice('advanced'),
+      modelTiers: Object.fromEntries(models.filter(m => m.purpose === 'general' && m.tools === true && !m.disabled).map(m => [m.id, modelTier(m, policy)])) };
   } catch { return null; }
 }

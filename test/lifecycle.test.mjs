@@ -100,7 +100,8 @@ test('advice follows provider credentials, expiry, model overrides and fresh sco
   const policy = { ...defaultPolicy, health: { providerBinding: connectionBinding(connection), groupId: 6 } };
   const models = [
     { id: 'private/fast', purpose: 'general', tools: true, economy: 100, capability: 80, health: { samples: 100, minimumSamples: 10, successRate: 0 } },
-    { id: 'private/coder', purpose: 'general', tools: true, economy: 30, capability: 95 },
+    { id: 'private/coder', purpose: 'general', tools: true, economy: 30, capability: 85 },
+    { id: 'private/architect', purpose: 'general', tools: true, economy: 20, capability: 95 },
   ];
   await saveAdvice(home, connection, { models }, { dataThrough: new Date().toISOString(), groupId: 6 });
   assert.equal((await loadAdvice(home, policy)).simple, 'private/coder');

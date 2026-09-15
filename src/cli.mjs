@@ -82,7 +82,7 @@ try {
         if (result.service) console.log(`Automatic sync installed: every ${interval / 60} minutes.`);
         if (result.router) console.log(result.router.installed ? `Auto Router installed: ${result.router.modelCount ?? 'dynamic'} provider models. Use router models/status/disable to inspect or control it.` : result.router.reason);
         if (result.router?.assessmentWarning) console.log(result.router.assessmentWarning);
-        if (result.router?.hooks?.installed) console.log('Lifecycle guidance installed. Review the three Auto Router hooks in Codex /hooks to enable execution.');
+        if (result.router?.hooks?.installed) console.log('Lifecycle guidance and Git agent installed. Review the Auto Router hooks in Codex /hooks to enable execution.');
         console.log('Restart running Codex clients to reload the model picker.');
       }
     }

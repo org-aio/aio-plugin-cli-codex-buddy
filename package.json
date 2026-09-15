@@ -1,6 +1,6 @@
 {
   "name": "codex-model-sync",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Dynamic Codex model discovery and task-aware Auto Router using your configured provider.",
   "type": "module",
   "bin": {

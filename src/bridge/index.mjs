@@ -37,7 +37,14 @@ export async function bridge({ binary, args, home, input = process.stdin, output
           message.params = rewriteTurn(message.params, decision);
           pending.set(id, { method, params: message.params, decision });
         }
-      } catch {
+      } catch (failure) {
+        if (failure.code === 'ECAPABILITY') {
+          pending.delete(id);
+          cancelled.delete(id);
+          record({ at: new Date().toISOString(), threadId, accepted: false, routed: false, reason: failure.message });
+          send({ id, error: { code: -32000, message: failure.message } });
+          return;
+        }
         record({ at: new Date().toISOString(), threadId, accepted: false, routed: false, requestedModel: message.params.model || null, reason: '模型列表、策略或供应商状态不可用' });
         warn(threadId, 'Auto 分流未生效：模型列表、策略或供应商状态不可用，保留原模型。');
       }

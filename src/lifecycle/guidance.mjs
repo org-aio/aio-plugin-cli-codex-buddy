@@ -15,11 +15,11 @@ export function guidance(input, advice, state = {}) {
   const event = input.hook_event_name;
   const active = `Auto Hook：实际模型 ${label(input.model)}`;
   const selection = advice
-    ? `当前供应商动态目录的缓存建议：简单任务 ${label(advice.simple)}，复杂任务 ${label(advice.advanced)}。能力和成本是估算，建议已考虑可用的成功率数据；创建前确认模型仍可用。`
+    ? `当前供应商动态目录的缓存建议：简单任务 ${label(advice.simple || '无匹配')}，常规任务 ${label(advice.standard || '无匹配')}，复杂任务 ${label(advice.advanced || '无匹配')}。先按任务难度筛选能力梯队，再在梯队内部参考成本和成功率；成功率不等于能力。能力和成本是估算；创建前确认模型仍可用。`
     : '暂无新鲜的供应商模型建议；沿用当前模型，不猜测或编造模型 ID。';
   const boundary = '只有现有指令允许委派且存在独立子任务时才创建子代理；遵守工具对 model 和 fork_turns 的约束。已运行的代理不能通过这些 Hook 改模型，交接时才能由父代理选择受支持的模型参数。';
   if (event === 'SubagentStart') return context(event,
-    `${active}。${selection}仅完成分配的任务。无冲突的提交、推送、状态查询可以按简单操作处理；编程、设计、冲突解决和不确定任务按复杂任务处理。` +
+    `${active}。${selection}仅完成分配的任务。无冲突的提交、推送、状态查询按简单操作处理；范围明确的局部修改按常规任务处理；设计、冲突解决和不确定任务按复杂任务处理。Git 专用子代理直接处理其 Git 子任务，不再转交另一个 Git 子代理。` +
     `遇到超出能力的阻碍，汇报证据、已完成步骤和剩余工作，避免反复重试有副作用的操作。结束时简述结果、验证以及需要父代理接手的内容。${boundary}`, active);
   if (event === 'SubagentStop') {
     if (!input.stop_hook_active && !String(input.last_assistant_message || '').trim()) return {

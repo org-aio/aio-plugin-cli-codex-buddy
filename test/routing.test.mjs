@@ -50,3 +50,37 @@ test('unknown tool compatibility cannot execute a task during assessment failure
   assert.equal(selectModel([unknown, known], defaultPolicy, { tier: 'simple' }).model, known.id);
   assert.throws(() => selectModel([unknown], defaultPolicy, { tier: 'simple' }));
 });
+
+test('task difficulty and specialist intent are separate dimensions', () => {
+  for (const text of ['git status', '提交代码', '推送代码', '合并分支 feature']) {
+    assert.equal(classify(input(text)).intent, 'git');
+    assert.equal(classify(input(text)).tier, 'simple');
+  }
+  for (const text of ['解决代码冲突', 'rebase with conflicts', '重构登录后提交代码', '开发一个 git 路由器']) {
+    assert.equal(classify(input(text)).intent, 'git');
+    assert.equal(classify(input(text)).tier, 'advanced');
+  }
+  assert.equal(classify(input('修改按钮文案')).tier, 'standard');
+  assert.equal(classify(input('修改按钮文案')).intent, 'general');
+  assert.equal(classify(input('修改按钮并重构跨模块架构')).tier, 'advanced');
+});
+
+test('perfect success never promotes a weak model into a stronger tier', () => {
+  const weak = { ...profile('weak-healthy', 65, 100), health: { samples: 1000, successRate: 1, minimumSamples: 10 } };
+  const medium = { ...profile('medium', 85, 80), health: { samples: 1000, successRate: 1, minimumSamples: 10 } };
+  const strong = { ...profile('strong-unreliable', 95, 10), health: { samples: 1000, successRate: 0.01, minimumSamples: 10 } };
+  for (const [tier, expected] of [['simple', weak.id], ['standard', medium.id], ['advanced', strong.id]]) {
+    const chosen = selectModel([weak, medium, strong], defaultPolicy, { tier });
+    assert.equal(chosen.model, expected); assert.equal(chosen.modelTier, tier);
+  }
+  assert.throws(() => selectModel([weak, medium], defaultPolicy, { tier: 'advanced' }), { code: 'ECAPABILITY' });
+  const upgraded = selectModel([strong], defaultPolicy, { tier: 'simple' });
+  assert.equal(upgraded.tier, 'simple'); assert.equal(upgraded.modelTier, 'advanced');
+});
+
+test('capability boundaries and explicit tier overrides remain configurable', () => {
+  const item = profile('private-calibrated', 85, 75);
+  assert.equal(selectModel([item], { ...defaultPolicy, capabilityThresholds: { standard: 60, advanced: 80 } }, { tier: 'advanced' }).modelTier, 'advanced');
+  assert.equal(selectModel([{ ...item, modelTier: 'advanced' }], defaultPolicy, { tier: 'advanced' }).modelTier, 'advanced');
+  assert.throws(() => selectModel([item], { ...defaultPolicy, capabilityThresholds: { standard: 90, advanced: 70 } }, { tier: 'standard' }));
+});
