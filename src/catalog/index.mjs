@@ -29,14 +29,9 @@ export function buildCatalog(listing, existing, bundled, manifest = {}) {
   const previous = indexModels(existing.models || [], 'slug', true);
   const native = indexModels(bundled.models, 'slug');
   const remote = indexModels(manifest.models || [], 'slug', true);
-  const order = id => native.has(id) ? native.get(id).priority ?? 1000 : 100000;
-  const sorted = [...ids.keys()].sort((a, b) => order(a) - order(b) || a.localeCompare(b, 'en'));
-  const models = sorted.map((slug, index) => ({
+  const models = [...ids.keys()].map((slug, index) => ({
     ...(native.get(slug) || previous.get(slug) || remote.get(slug) || genericModel(slug)),
-    slug, visibility: 'list', supported_in_api: true, priority: index + 1,
+    slug, display_name: slug, visibility: 'list', supported_in_api: true, priority: index + 1,
   }));
-  for (const [slug, model] of previous) {
-    if (!ids.has(slug) && model.visibility === 'hide') models.push(model);
-  }
   return { models };
 }

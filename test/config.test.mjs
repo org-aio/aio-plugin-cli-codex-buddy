@@ -44,15 +44,20 @@ test('credentials use explicit env_key, auth file and configured headers without
   assert.equal((await readConnection(home, {})).headers.get('Authorization'), 'Bearer fixture-command-key');
 });
 
-test('catalog membership follows source without discarding native capabilities or hidden internal models', () => {
-  const native = { ...genericModel('native'), supported_reasoning_levels: [{ effort: 'xhigh', description: 'native' }] };
+test('only API IDs appear, in API order, while matching models retain their capabilities', () => {
+  const native = { ...genericModel('native'), display_name: 'Old label', supported_reasoning_levels: [{ effort: 'xhigh', description: 'native' }] };
   const existing = { models: [{ ...genericModel('removed') }, { ...genericModel('internal'), visibility: 'hide' }] };
-  const bundled = { models: [native] };
+  const bundled = { models: [native, genericModel('bundled-only')] };
+  const manifest = { models: [genericModel('manifest-only')] };
   const listing = { data: [{ id: 'new' }, { id: 'native' }] };
-  const output = buildCatalog(listing, existing, bundled);
-  assert.deepEqual(output.models.map(model => model.slug), ['native', 'new', 'internal']);
-  assert.deepEqual(output.models[0].supported_reasoning_levels, native.supported_reasoning_levels);
-  assert.deepEqual(buildCatalog({ data: [...listing.data].reverse() }, output, bundled), output);
+  const output = buildCatalog(listing, existing, bundled, manifest);
+  assert.deepEqual(output.models.map(model => model.slug), ['new', 'native']);
+  assert.deepEqual(output.models.map(model => model.display_name), ['new', 'native']);
+  assert.deepEqual(output.models[1].supported_reasoning_levels, native.supported_reasoning_levels);
+  assert.deepEqual(buildCatalog(listing, output, bundled, manifest), output);
+  const reversed = buildCatalog({ data: [...listing.data].reverse() }, output, bundled, manifest);
+  assert.deepEqual(reversed.models.map(model => model.slug), ['native', 'new']);
+  assert.deepEqual(buildCatalog({ data: [{ id: 'new' }] }, output, bundled, manifest).models.map(model => model.slug), ['new']);
   assert.throws(() => buildCatalog({ data: [] }, existing, bundled), /empty/);
   assert.throws(() => buildCatalog({ data: [{ id: 'x' }, { id: 'x' }] }, existing, bundled), /duplicate/);
 });

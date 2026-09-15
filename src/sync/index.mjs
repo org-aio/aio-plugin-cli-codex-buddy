@@ -40,9 +40,9 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
         try {
           await atomicWrite(candidate, catalog);
           const loaded = JSON.parse(await command(binary, ['debug', 'models', '-c', `model_catalog_json=${JSON.stringify(candidate)}`]));
-          const expected = [...indexModels(catalog.models, 'slug').keys()].sort();
+          const expected = [...indexModels(listing.data, 'id').keys()].sort();
           const actual = [...indexModels(loaded.models, 'slug').keys()].sort();
-          if (!isDeepStrictEqual(expected, actual)) throw new Error('Codex did not load the complete catalog.');
+          if (!isDeepStrictEqual(expected, actual)) throw new Error('Codex catalog does not exactly match the provider model list.');
         } finally { await rm(candidate, { force: true }); }
         if (current.models) await atomicWrite(join(directory, 'previous-catalog.json'), current);
         await atomicWrite(catalogPath, catalog);
@@ -57,7 +57,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
         await atomicWrite(connection.configFile, editCatalogSetting(source, catalogPath));
       }
       await atomicWrite(join(directory, 'state.json'), { ...state, configured: true, uninstalled: false, codexBinary: binary });
-      const before = new Set((existing.models || []).filter(model => model.visibility !== 'hide').map(model => model.slug));
+      const before = new Set((existing.models || []).map(model => model.slug));
       const after = new Set(listing.data.map(model => model.id));
       const result = {
         ok: true, checkedAt: new Date().toISOString(), changed, provider: connection.providerId,
