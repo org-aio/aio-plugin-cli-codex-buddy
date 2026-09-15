@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
+import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -38,7 +39,7 @@ console.log(JSON.stringify({id:m.id,result})); }
     waiters.set(requestId, m => { clearTimeout(timer); resolve(m); });
     child.stdin.write(JSON.stringify({ id: requestId, method, params }) + '\n');
   });
-  t.after(async () => { child.kill(); server.closeAllConnections(); await new Promise(r => server.close(r)); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { const exited = once(child, 'exit'); child.kill(); await exited; server.closeAllConnections(); await new Promise(r => server.close(r)); await rm(home, { recursive: true, force: true }); });
   await call('thread/start', {});
   return { home, remote, call, messages };
 }
