@@ -4,18 +4,30 @@ import { readJson, atomicWrite, withLock } from '../runtime/index.mjs';
 import { normalizePolicy } from '../routing/policy.mjs';
 import { loadAdvice } from './advice.mjs';
 import { guidance, toolFailed } from './guidance.mjs';
-import { detectIntent } from '../routing/intent.mjs';
 import { assess } from '../routing/assessment.mjs';
-import { findGitAgent } from '../git-agent/discovery.mjs';
+import { findAgent } from '../agents/discovery.mjs';
+import { definitions } from '../agents/index.mjs';
 import { gitGuidance } from '../git-agent/guidance.mjs';
+import { projectGuidance, projectContext } from '../project-agent/guidance.mjs';
+import { inspectProject } from '../project-tools/index.mjs';
 
 export async function runHook(home, input) {
   const policy = normalizePolicy(await readJson(join(home, 'model-router', 'policy.json'), {}));
   if (!policy.enabled || policy.hooks?.enabled === false) return null;
   if (input.hook_event_name === 'UserPromptSubmit') {
-    if (input.agent_id || detectIntent(input.prompt).intent !== 'git') return null;
-    const [assessment, advice] = await Promise.all([assess([{ type: 'text', text: input.prompt }], input.cwd), loadAdvice(home, policy)]);
-    return gitGuidance(assessment, await findGitAgent(home, input.cwd, advice, assessment.tier), advice);
+    if (input.agent_id) return null;
+    const [project, advice] = await Promise.all([inspectProject(input.cwd), loadAdvice(home, policy)]);
+    const assessment = await assess([{ type: 'text', text: input.prompt }], input.cwd, project);
+    const definition = definitions[assessment.intent];
+    if (!definition) {
+      const additionalContext = projectContext(project);
+      return additionalContext ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext } } : null;
+    }
+    const agent = await findAgent(home, input.cwd, advice, definition, assessment.tier);
+    if (assessment.intent === 'project') return projectGuidance(assessment, agent, advice, project);
+    const output = gitGuidance(assessment, agent, advice);
+    output.hookSpecificOutput.additionalContext += projectContext(project);
+    return output;
   }
   if (!['SubagentStart', 'SubagentStop', 'PostToolUse'].includes(input.hook_event_name)) return null;
   if (input.hook_event_name !== 'PostToolUse') return guidance(input, await loadAdvice(home, policy));

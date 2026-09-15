@@ -5,8 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'smol-toml';
-import { installGitAgent, uninstallGitAgent } from '../src/git-agent/install.mjs';
-import { findGitAgent } from '../src/git-agent/discovery.mjs';
+import { installAgent, uninstallAgent } from '../src/agents/install.mjs';
+import { definitions } from '../src/agents/index.mjs';
+import { findAgent } from '../src/agents/discovery.mjs';
 import { runHook } from '../src/lifecycle/index.mjs';
 
 async function fixture(t) {
@@ -14,7 +15,7 @@ async function fixture(t) {
   t.after(() => rm(home, { recursive: true, force: true }));
   const cwd = join(home, 'project'); await mkdir(cwd);
   execFileSync('git', ['init', '-q', cwd]);
-  const agent = await installGitAgent(home);
+  const agent = await installAgent(home, definitions.git);
   return { home, cwd, agent };
 }
 const role = (name, model) => `name = "${name}"\ndescription = "Git specialist"\ndeveloper_instructions = "Handle assigned Git work"\n${model ? `model = "${model}"\n` : ''}`;
@@ -25,8 +26,8 @@ test('installs a model-neutral Git profile and preserves user modifications', as
   assert.equal(profile.name, 'git-operations'); assert.equal(profile.model, undefined);
   assert.match(profile.developer_instructions, /不再转交/);
   await writeFile(agent.file, role('git-operations', 'my-custom-model'));
-  assert.equal((await installGitAgent(home, agent)).preserved, true);
-  await uninstallGitAgent(agent);
+  assert.equal((await installAgent(home, definitions.git, agent)).preserved, true);
+  await uninstallAgent(agent);
   assert.match(await readFile(agent.file, 'utf8'), /my-custom-model/);
 });
 
@@ -35,10 +36,10 @@ test('prefers existing Git agents but excludes fixed models below the required t
   const folder = join(cwd, '.codex', 'agents'); await mkdir(folder, { recursive: true });
   await writeFile(join(folder, 'git.toml'), role('project-git', 'weak'));
   const advice = { modelTiers: { weak: 'simple' } };
-  assert.equal((await findGitAgent(home, cwd, advice, 'simple')).name, 'project-git');
-  assert.equal((await findGitAgent(home, cwd, advice, 'advanced')).name, 'git-operations');
+  assert.equal((await findAgent(home, cwd, advice, definitions.git, 'simple')).name, 'project-git');
+  assert.equal((await findAgent(home, cwd, advice, definitions.git, 'advanced')).name, 'git-operations');
   await writeFile(join(folder, 'git.toml'), role('project-git'));
-  assert.equal((await findGitAgent(home, cwd, advice, 'advanced')).name, 'project-git');
+  assert.equal((await findAgent(home, cwd, advice, definitions.git, 'advanced')).name, 'project-git');
 });
 
 test('user prompt detects Git before tool execution and protects conflicts and mixed tasks', async t => {

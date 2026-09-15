@@ -105,3 +105,19 @@ test('an advanced task is not forwarded when only weak models are live', async t
   assert.match(result.error.message, /advanced/);
   assert.equal(result.result, undefined);
 });
+
+test('project commands change the forwarded model before execution and refresh after manifest edits', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.home, 'package.json'), '{"scripts":{"dev":"vite"}}');
+  let result = await f.call('turn/start', params('跑起来看看'));
+  assert.equal(result.result.seen.model, 'gpt-5.6-luna');
+  assert.ok(f.messages.some(item => item.params?.message?.includes('项目运行意图')));
+  result = await f.call('turn/start', params('跑起来并重构模块'));
+  assert.equal(result.result.seen.model, 'gpt-6-astra');
+  await writeFile(join(f.home, 'package.json'), '{"scripts":{}}');
+  result = await f.call('turn/start', params('跑起来看看'));
+  // The fixture has no standard model: upward fallback must never use its simple model.
+  assert.equal(result.result.seen.model, 'gpt-6-astra');
+  const status = await readFile(join(f.home, 'model-router/status.json'), 'utf8');
+  assert.doesNotMatch(status, /package.json|vite|跑起来/);
+});

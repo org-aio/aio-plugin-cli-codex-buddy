@@ -4,10 +4,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { parse } from 'smol-toml';
 import { tiers } from '../routing/tiers.mjs';
-import { name as installedName } from './profile.mjs';
 
 const exec = promisify(execFile);
-export async function findGitAgent(home, cwd, advice, required = 'advanced') {
+export async function findAgent(home, cwd, advice, { name: installedName, match }, required = 'advanced') {
   const root = cwd ? await exec('git', ['rev-parse', '--show-toplevel'], { cwd, timeout: 500 }).then(r => r.stdout.trim(), () => null) : null;
   const directories = [...new Set([cwd && join(cwd, '.codex', 'agents'), root && join(root, '.codex', 'agents'), join(home, 'agents')].filter(Boolean))];
   const found = new Map();
@@ -23,7 +22,7 @@ export async function findGitAgent(home, cwd, advice, required = 'advanced') {
     }
   }
   const suitable = [...found.values()].filter(role => typeof role.developer_instructions === 'string'
-    && /(?:git|commit|push|merge|rebase|提交|推送|代码冲突|合并)/i.test(`${role.name} ${role.description || ''}`)
+    && match.test(`${role.name} ${role.description || ''}`)
     && (!role.model || tiers.indexOf(advice?.modelTiers?.[role.model]) >= tiers.indexOf(required)));
   suitable.sort((a, b) => Number(a.name === installedName) - Number(b.name === installedName));
   const role = suitable[0];

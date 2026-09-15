@@ -3,11 +3,12 @@ import { promisify } from 'node:util';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { classify } from './intent.mjs';
+import { inspectProject } from '../project-tools/index.mjs';
 
 const exec = promisify(execFile);
-export async function assess(input, cwd) {
-  const result = classify(input);
-  if (result.tier !== 'simple') return result;
+export async function assess(input, cwd, project) {
+  const result = classify(input, project || await inspectProject(cwd));
+  if (result.tier !== 'simple' || result.intent !== 'git') return result;
   const advanced = reason => ({ ...result, tier: 'advanced', reason });
   if (!cwd) return advanced('工作目录未知，不能确认 Git 操作难度');
   try {

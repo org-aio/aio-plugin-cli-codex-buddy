@@ -1,13 +1,17 @@
-export function detectIntent(text = '') {
+import { operation, operationIntent } from './operations.mjs';
+
+export function detectIntent(text = '', project) {
   const words = text.match(/\bgit\b|\b(?:push|commit|merge|rebase|cherry-pick)\b|推送|提交|代码冲突|合并|变基/gi) || [];
-  return { intent: words.length ? 'git' : 'general' };
+  return { intent: words.length ? 'git' : operationIntent(text, project) ? 'project' : 'general' };
 }
 
-export function classify(input) {
+export function classify(input, project) {
   const text = Array.isArray(input) ? input.filter(item => item.type === 'text').map(item => item.text || '').join('\n').trim() : '';
-  const intent = detectIntent(text);
+  const intent = detectIntent(text, project);
   const result = (tier, reason) => ({ ...intent, tier, reason, assessmentSource: 'local-rules' });
   if (!Array.isArray(input) || input.some(item => item.type !== 'text')) return result('advanced', '包含附件或非文本输入');
+  const work = operation(text, project);
+  if (work) return { ...result(work.tier, work.tier === 'simple' ? '明确的项目操作，已发现对应 CLI 入口' : '项目操作需要查找入口或初步排查环境'), intent: 'project', action: work.action };
   if (/(?:冲突|架构|重构|跨(?:模块|服务|仓库)|并发|迁移|安全漏洞|数据修复|权限|鉴权|认证|加密|事务|数据库|conflict|architect|refactor|race condition|migration|auth|security|database|transaction)/i.test(text)) {
     return result('advanced', '涉及冲突、系统设计或复杂修改');
   }

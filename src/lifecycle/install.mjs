@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { atomicWrite, readJson, withLock } from '../runtime/index.mjs';
-import { installGitAgent, uninstallGitAgent } from '../git-agent/install.mjs';
+import { installAgent, uninstallAgent } from '../agents/install.mjs';
+import { definitions } from '../agents/index.mjs';
 
 const events = ['UserPromptSubmit', 'SubagentStart', 'SubagentStop', 'PostToolUse'];
 const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
 const manifestPath = home => join(home, 'model-router', 'hooks-install.json');
+const ownedAgents = state => state.agents || [state.agent].filter(Boolean);
 
 function removeOwned(config, commands) {
   for (const event of events) {
@@ -41,8 +43,9 @@ export async function installHooks(home, entry) {
       await atomicWrite(join(home, 'model-router', `hooks-backup-${Date.now()}.json`), old);
       await atomicWrite(file, next);
     }
-    const agent = await installGitAgent(home, prior.agent);
-    const state = { installed: true, file, script, commands: [command], events, agent, trust: 'Review in Codex /hooks; installer does not grant trust.' };
+    const agents = [];
+    for (const definition of Object.values(definitions)) agents.push(await installAgent(home, definition, ownedAgents(prior).find(agent => agent.name === definition.name)));
+    const state = { installed: true, file, script, commands: [command], events, agents, trust: 'Review in Codex /hooks; installer does not grant trust.' };
     await atomicWrite(manifestPath(home), state);
     return state;
   });
@@ -56,7 +59,7 @@ export async function uninstallHooks(home) {
     const old = await readJson(file, {});
     const next = removeOwned(structuredClone(old), state.commands || []);
     if (JSON.stringify(old) !== JSON.stringify(next)) await atomicWrite(file, next);
-    await uninstallGitAgent(state.agent);
+    for (const agent of ownedAgents(state)) await uninstallAgent(agent);
     await atomicWrite(manifestPath(home), { ...state, installed: false });
     return { installed: false, retained: 'Hook scripts retained for running Codex sessions.' };
   });

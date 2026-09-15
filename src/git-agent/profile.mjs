@@ -1,4 +1,5 @@
 export const name = 'git-operations';
+export const match = /(?:git|commit|push|merge|rebase|提交|推送|代码冲突|合并)/i;
 export const profile = `name = "${name}"
 description = "Git specialist for status, commit, push, merge, rebase and code conflicts; Git 提交、推送、合并、代码冲突优先使用。"
 developer_instructions = """

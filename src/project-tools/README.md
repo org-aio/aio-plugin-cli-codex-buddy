@@ -1,0 +1,3 @@
+# Project command discovery
+
+Read-only, bounded inspection of manifests in the nearest project and immediate subprojects and common monorepo directories (up to 64 directory reads and three child levels). No subprocesses, dependency installation, environment files or script-body evaluation. Commands retain their working directory and source; convention-based candidates must be checked before execution. Malformed manifests do not hide other toolchains. Includes inherited JavaScript workspace package managers and Kotlin Toolchain application modules. Language detectors share a framework-independent report consumed by routing, hooks and the `router project` command.

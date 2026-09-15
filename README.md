@@ -133,6 +133,18 @@ npx -y codex-model-sync router uninstall
 
 Setup also installs `UserPromptSubmit`, `SubagentStart`, `SubagentStop`, and `PostToolUse` guidance hooks, preserving any existing hooks (including `Stop`). Review the Auto Router definitions in Codex `/hooks` before they execute. Changed hook code gets a new content-addressed script path so Codex requests trust again. The installer never grants trust or bypasses review.
 
+`UserPromptSubmit` also detects project operations such as `跑起来`, `跑起来看看`, `启动项目`, builds, tests and known CLI invocations. It supplies local stack keywords and candidate commands before the first tool call, and prefers an existing suitable project operations agent before the model-neutral `~/.codex/agents/project-operations.toml` fallback. Ordinary development prompts also receive the project command context. The App Server bridge uses the same assessment before choosing the turn model; hooks alone cannot change an active model.
+
+Project inspection reads bounded manifests from the nearest project, immediate subprojects and common monorepo containers. It recognizes package scripts (npm/pnpm/yarn/bun, including inherited workspace managers), Gradle/Maven, Kotlin Toolchain wrappers and application modules, Cargo, Go, Python, .NET, Dart/Flutter, Compose and task runners. It emits the source and working directory for each candidate, prioritizes commands relevant to the task, and distinguishes declared entries from conventions requiring verification. It does not execute project scripts, inspect `.env` files or include script bodies. Unrecognized layouts and missing entry points stay explicit; the agent checks the README and actual environment instead of inventing a command.
+
+```sh
+# Run in the project: local inspection, no model/provider call required.
+npx -y codex-model-sync router project --json
+npx -y codex-model-sync router preview "跑起来看看"
+```
+
+Confirmed routine entry points use `simple`; finding an entry or initial environment diagnosis uses `standard`. Mixed development, architecture and complex code failures retain `advanced`. Results must be verified through real process readiness, exit status, test output and browser checks where requested. Launching a command is not proof the application is running. This is rule-based routing; no traffic reduction percentage has been measured.
+
 `UserPromptSubmit` detects Git intent before tool execution using keywords such as `git`, `commit`, `push`, `merge`, `提交`, `推送`, `代码冲突`, and `合并`. It looks for existing Git agents in project/personal agent directories, then uses the installed `~/.codex/agents/git-operations.toml` fallback. A role whose fixed model is below the required capability tier is excluded. The bundled role leaves its model unset so the parent can select it dynamically. Keywords identify a specialist, not task difficulty or authorization: conflict resolution remains advanced, and mixed requests delegate only the actual Git work. Already assigned Git agents do not delegate the same work recursively. Role files follow the [Codex custom-agent format](https://learn.chatgpt.com/docs/agent-configuration/subagents); the runtime's available tools determine how a role/model can be selected.
 
 `SubagentStart` announces the actual model and asks the child to hand back results, verification and blockers. `PostToolUse` offers simple/standard/advanced model suggestions once per turn, with one extra reminder for a structured tool error; it preserves the original result. `SubagentStop` requests one summary if the child ends with no final message, respecting `stop_hook_active` to prevent loops. A non-zero exit is a signal to investigate, not proof of model failure (for example, search exit 1 can simply mean no matches).
@@ -147,18 +159,18 @@ npx -y codex-model-sync router hooks status
 npx -y codex-model-sync router hooks uninstall
 ```
 
-`router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes this package's hook commands and its unmodified Git profile; user edits to that profile are preserved. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
+`router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes this package's hook commands and its unmodified Git/project operations profiles; user edits to those profiles are preserved. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
 
 An available assessment model is selected from catalog capability descriptions and reused after successful assessments. It evaluates model capabilities and relative economy from the complete inventory. This assessment is cached for 24 hours and refreshed when models or descriptions change. It is an extra provider API call and can incur usage. Invalid, incomplete or unavailable assessment retains previous valid profiles, shows new models as uncertain name/description estimates, and retries after one minute. Uncertain new models do not execute tasks. `assessment: "heuristic"` disables this extra API call.
 
 **Estimated economy is not a price quote, and estimated tool support is not a compatibility test.** Specialized/non-tool models remain visible but cannot be chosen for agent execution. Unknown models are shown with uncertain profiles and wait for assessment or an explicit user override before executing tasks. `model-router/policy.json` supports per-ID overrides through `models: { "provider/model": { "capability": 90, "economy": 60, "tools": true, "purpose": "general", "modelTier": "advanced" } }`; `modelTier` is optional.
 
-Routing order is **task difficulty → capability tier → within-tier cost/reliability ranking**. The classifier uses local rules (not a trained RouterLLM classifier); uncertain tasks stay advanced. Model capability tiers derive from estimated capability scores, with configurable thresholds and explicit per-model overrides.
+Routing order is **task difficulty → capability tier → within-tier cost/reliability ranking**. The classifier uses local rules (not a trained RouterLLM classifier); uncertain development tasks stay advanced, while bounded project entry discovery uses standard. Model capability tiers derive from estimated capability scores, with configurable thresholds and explicit per-model overrides.
 
 | Task tier | Examples | Default capability band |
 | --- | --- | --- |
-| `simple` | Explicit Git status/commit/push/merge without in-progress Git work | 0–69 |
-| `standard` | Clearly bounded button, label, README or CSS changes | 70–89 |
+| `simple` | Explicit Git status/commit/push/merge without in-progress Git work; project run/build/test with discovered entry points | 0–69 |
+| `standard` | Project entry discovery, initial environment diagnosis; bounded button, label, README or CSS changes | 70–89 |
 | `advanced` | Conflicts, architecture, refactoring, broad or uncertain work | 90–100 |
 
 The first available band at or above the task's requirement is selected; fallback is upward only. **A weak model with 100% request success cannot replace an advanced model.** If discovery succeeds but no model meets the required band, the router rejects the turn before forwarding it. Within a band, simple tasks use 70% economy + 30% capability, standard tasks 40% economy + 60% capability, and advanced tasks use capability; success statistics then weight these scores. Thresholds live under `capabilityThresholds: { "simple": 0, "standard": 70, "advanced": 90 }` in policy, and effort is configurable with `simpleEffort`, `standardEffort`, and `advancedEffort`.
