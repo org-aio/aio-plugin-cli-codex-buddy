@@ -14,7 +14,7 @@ setup       Sync models and install background sync (default; legacy behavior)
 sync        Sync once; read the current provider and API key again
 watch       Sync repeatedly in the foreground
 status      Show synchronization and Auto Router status
-router      setup|status|models|project|preview PROMPT|planning|enable|disable|health|hooks|uninstall
+router      setup|status|models|project|preview PROMPT|match PROMPT|dispatch|planning|enable|disable|health|hooks|uninstall
 uninstall   Remove the background task and restore the prior catalog setting
 
 --home PATH       Codex directory (default: CODEX_HOME or ~/.codex)

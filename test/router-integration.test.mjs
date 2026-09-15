@@ -9,15 +9,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readJson, atomicWrite } from '../src/runtime/index.mjs';
 
-async function fixture(t) {
+async function fixture(t, direct = false) {
   const home = await mkdtemp(join(tmpdir(), 'router-test-'));
   execFileSync('git', ['init', '-q', home]);
-  const remote = { ids: ['gpt-5.6-luna', 'gpt-6-astra'], code: 200, delay: 0 };
-  const server = createServer((req, res) => setTimeout(() => {
+  const remote = { ids: ['gpt-5.6-luna', 'gpt-6-astra'], code: 200, delay: 0, calls: 0 };
+  const server = createServer((req, res) => { remote.calls++; setTimeout(() => {
     const profiles = remote.ids.map(id => ({ id, capability: id.includes('luna') || id.includes('flash') ? 50 : 90, economy: id.includes('luna') || id.includes('flash') ? 90 : 40, tools: true, purpose: 'general', ...remote.profiles?.[id] }));
     const body = req.url.endsWith('/responses') ? { output_text: remote.assessmentFails ? 'invalid assessment' : JSON.stringify({ models: profiles }) } : { data: remote.ids.map(id => ({ id })) };
     res.writeHead(remote.code, { 'content-type': 'application/json' }).end(JSON.stringify(body));
-  }, remote.delay));
+  }, remote.delay); });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   await writeFile(join(home, 'config.toml'), `model="gpt-6-astra"\nmodel_provider="fixture"\n[model_providers.fixture]\nbase_url="http://127.0.0.1:${server.address().port}/v1"\nexperimental_bearer_token="never-log-this"\n`);
   const binary = join(home, 'fake.mjs');
@@ -25,9 +25,15 @@ async function fixture(t) {
 if(process.argv.includes('--version')){console.log('codex-cli 0.154.0');process.exit(0)}
 for await (const l of createInterface({input:process.stdin})) {const m=JSON.parse(l); if(!m.method)continue;
 let result=m.params;
-if(m.method==='thread/start')result={thread:{id:'t'},cwd:${JSON.stringify(home)},modelProvider:'fixture',model:'gpt-6-astra'};
+if(m.method==='thread/start')result={thread:{id:'t',environments:[{environmentId:'local'}]},cwd:${JSON.stringify(home)},modelProvider:'fixture',model:'gpt-6-astra',...${JSON.stringify(direct ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } } : {})}};
 if(m.method==='turn/start')result={turn:{id:'turn'},seen:m.params};
-console.log(JSON.stringify({id:m.id,result})); }
+console.log(JSON.stringify({id:m.id,result}));
+if(m.method==='thread/shellCommand'){
+ console.log(JSON.stringify({method:'turn/started',params:{threadId:'t',turn:{id:'native',status:'inProgress'}}}));
+ console.log(JSON.stringify({method:'item/completed',params:{threadId:'t',turnId:'native',item:{type:'commandExecution',status:'completed',exitCode:0,command:m.params.command}}}));
+ console.log(JSON.stringify({method:'turn/completed',params:{threadId:'t',turn:{id:'native',status:'completed'}}}));
+}
+}
 `, { mode: 0o755 });
   const child = spawn(process.execPath, [resolve('dist/router.mjs'), '--router-home', home, '--router-binary', binary, 'app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
   let stderr = ''; child.stderr.on('data', d => stderr += d);
@@ -63,6 +69,26 @@ console.log(JSON.stringify({id:m.id,result})); }
   return { home, remote, call, messages, finish };
 }
 const params = text => ({ threadId: 't', model: 'gpt-6-astra', input: [{ type: 'text', text }], approvalPolicy: 'never' });
+
+test('rule dispatch bypasses all provider requests and uses native completion records', { skip: process.platform === 'win32' }, async t => {
+  const f = await fixture(t, true);
+  const result = await f.call('turn/start', params('当前分支'));
+  assert.equal(result.result.turn.id, 'native');
+  assert.equal(f.remote.calls, 0);
+  await f.finish();
+  assert.ok(f.messages.some(m => m.params?.item?.command?.includes("'git' '--no-pager' 'branch' '--show-current'")));
+  const state = await readJson(join(f.home, 'model-router/status.json'));
+  assert.equal(state.route, 'tool'); assert.equal(state.model, null); assert.equal(state.exitCode, 0); assert.equal(state.success, true);
+  assert.equal(state.providerRequests, 0);
+  assert.doesNotMatch(JSON.stringify(state), /当前分支|never-log-this/);
+});
+
+test('disabled dispatch preserves model routing in otherwise eligible threads', async t => {
+  const f = await fixture(t, true);
+  await atomicWrite(join(f.home, 'model-router/policy.json'), { dispatch: { enabled: false } });
+  const result = await f.call('turn/start', params('当前分支'));
+  assert.equal(result.result.turn.id, 'turn'); assert.ok(f.remote.calls > 0);
+});
 
 test('live planning preferences route the main turn while reporting the worker only as a candidate', async t => {
   const f = await fixture(t);

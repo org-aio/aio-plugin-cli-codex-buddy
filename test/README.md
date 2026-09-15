@@ -11,3 +11,5 @@ Legacy default/setup CLI integration tests isolate the OS scheduler and confirm 
 Windows 回归验证命令执行和长驻子进程都能运行带空格的 JS 路径；bridge 清理识别已经退出的进程并限定等待时间，hook 安装测试遵循 POSIX 支持边界。
 
 规划/执行回归覆盖强规划与经济执行分工、实时首选失效替换、未知模型隔离、子任务能力要求、角色固定模型冲突、精简交接、实际模型与候选区分、策略迁移及原简单任务路径。
+
+确定性分发覆盖完整短句与否定/混合请求、多入口歧义、POSIX 参数引用、权限/环境/规划模式边界、原生轮次 ID 与真实失败结果。设置 `CODEX_TEST_BINARY` 后，`native-dispatch.test.mjs` 在隔离配置下使用真实 App Server 验证零供应商请求、历史持久化和中断后 npm 子进程清理。

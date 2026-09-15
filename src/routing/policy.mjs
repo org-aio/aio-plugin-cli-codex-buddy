@@ -1,6 +1,7 @@
 import { reliability } from './health.mjs';
 import { capablePool, capabilityThresholds } from './tiers.mjs';
 import { normalizePlanning } from '../planning/model.mjs';
+import { normalizeDispatch } from '../dispatch/model.mjs';
 export { classify } from './intent.mjs';
 
 export const defaultPolicy = {
@@ -14,6 +15,7 @@ export const defaultPolicy = {
   advancedEffort: 'high',
   executorEffort: 'low',
   planning: normalizePlanning(),
+  dispatch: normalizeDispatch(),
   capabilityThresholds,
   models: {},
 };
@@ -21,7 +23,7 @@ export const defaultPolicy = {
 export function normalizePolicy(saved = {}) {
   // Migrate the prototype's family allowlists; explicit per-model overrides remain supported.
   const { simplePatterns, advancedPatterns, ...rest } = saved;
-  return { ...defaultPolicy, ...rest, version: 4, planning: normalizePlanning(rest.planning), capabilityThresholds: { ...capabilityThresholds, ...rest.capabilityThresholds } };
+  return { ...defaultPolicy, ...rest, version: 4, planning: normalizePlanning(rest.planning), dispatch: normalizeDispatch(rest.dispatch), capabilityThresholds: { ...capabilityThresholds, ...rest.capabilityThresholds } };
 }
 
 export function selectModel(profiles, policy, assessment, fallback, metadata = []) {

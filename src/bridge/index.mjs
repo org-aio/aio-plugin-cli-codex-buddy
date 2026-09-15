@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { atomicWrite } from '../runtime/index.mjs';
 import { routeTurn } from '../routing/index.mjs';
 import { rewriteTurn, notice } from './protocol.mjs';
+import { prepareDispatch, dispatchLifecycle, threadState, turnState } from '../dispatch/bridge.mjs';
 
 // A transparent stdio bridge: preserve IDs, server requests, approvals and all unknown methods.
 export async function bridge({ binary, args, home, input = process.stdin, output = process.stdout, error = process.stderr }) {
@@ -24,15 +25,22 @@ export async function bridge({ binary, args, home, input = process.stdin, output
     writes = writes.then(() => atomicWrite(join(home, 'model-router', 'status.json'), value))
       .catch(() => warn(value.threadId, 'Auto：无法保存本轮模型状态。'));
   };
+  const dispatch = dispatchLifecycle({ send, warn, record, release: threadId => active.delete(threadId) });
   async function forward(line) {
     let message;
     try { message = JSON.parse(line); } catch { child.stdin.write(line + '\n'); return; }
     const { method, id } = message;
+    let direct;
     if (method && id !== undefined) pending.set(id, { method, params: message.params });
+    if (method === 'thread/settings/update') {
+      const previous = threads.get(message.params?.threadId);
+      if (previous) threads.set(message.params.threadId, { ...turnState(message.params, previous), sandbox: null });
+    }
     if (method === 'turn/start' && !active.has(message.params?.threadId) && message.params?.input?.length && !message.params.toolOutput) {
       const threadId = message.params.threadId;
       try {
-        const decision = await routeTurn(home, message.params, threads.get(threadId));
+        direct = await prepareDispatch(home, message.params, threads.get(threadId));
+        const decision = direct ? null : await routeTurn(home, message.params, threads.get(threadId));
         if (decision) {
           message.params = rewriteTurn(message.params, decision);
           pending.set(id, { method, params: message.params, decision });
@@ -55,6 +63,11 @@ export async function bridge({ binary, args, home, input = process.stdin, output
       return;
     }
     if (!closed) {
+      if (direct) {
+        pending.delete(id);
+        active.add(message.params.threadId);
+        message = dispatch.submit(id, message.params.threadId, direct);
+      }
       const request = pending.get(id);
       if (request) request.forwarded = true;
       child.stdin.write(JSON.stringify(message) + '\n');
@@ -77,14 +90,16 @@ export async function bridge({ binary, args, home, input = process.stdin, output
   responses.on('line', line => {
     let message;
     try { message = JSON.parse(line); } catch { output.write(line + '\n'); return; }
+    if (dispatch.handle(message)) return;
     const request = !message.method && pending.get(message.id);
     if (request) {
       pending.delete(message.id);
       const result = message.result;
       if (result?.thread?.id) {
         const previous = threads.get(result.thread.id);
-        threads.set(result.thread.id, { cwd: result.cwd || result.thread.cwd || previous?.cwd, provider: result.modelProvider || previous?.provider, model: result.model || previous?.model });
+        threads.set(result.thread.id, threadState(result, request.params, previous));
       }
+      if (request.method === 'turn/start' && !message.error) threads.set(request.params.threadId, turnState(request.params, threads.get(request.params.threadId)));
       if (request.decision) {
         const threadId = request.params.threadId;
         const accepted = !message.error;
@@ -107,6 +122,7 @@ export async function bridge({ binary, args, home, input = process.stdin, output
     child.once('exit', code => resolve(code ?? 1));
   });
   closed = true;
+  dispatch.close();
   requests.close(); responses.close();
   process.off('SIGTERM', stop); process.off('SIGINT', stop);
   await writes;

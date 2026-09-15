@@ -143,7 +143,7 @@ OIDC lets an authorized GitHub Actions workflow publish without a stored, long-l
 | Provider | GitHub Actions |
 | Organization or user | `zjarlin` |
 | Repository | `codex-model-sync` |
-| Workflow filename | `publish.yml` (must exist in `.github/workflows/`) |
+| Workflow filename | `aio-cli.yml` (in `.github/workflows/`) |
 | Environment | Match the workflow's environment exactly, or leave unset if unused |
 | Allowed actions | Enable direct **`npm publish`** for unattended releases |
 
@@ -151,7 +151,7 @@ The workflow must use a GitHub-hosted runner, grant `contents: read` and `id-tok
 
 New trusted publishers allow staging by default. If only **`npm stage publish`** is allowed, a maintainer must still approve each staged version with 2FA; explicitly allow direct publishing to avoid that per-release step. Initial trust configuration may itself require account verification. See the [official OIDC setup and workflow example](https://docs.npmjs.com/trusted-publishers/).
 
-**Repository status:** `.github/workflows/check.yml` currently checks and packages the CLI; it does not publish. The `publish.yml` settings above describe how to add publishing, not an already configured workflow or npm trust relationship.
+**Repository status:** `.github/workflows/aio-cli.yml` is configured with npm Trusted Publishing. Default-branch pushes run Linux/Windows tests, publish a source-bound development version to npm `next`, and update the AIO plugin market. A matching `vX.Y.Z` tag publishes the stable version to npm `latest`. `.github/workflows/check.yml` provides additional package validation. The AIO release workflow uses `@zjarlin/aio@2026.9.17`; no per-release interactive login is needed while its npm trust binding remains valid.
 
 ### Alternative: a granular publishing token
 
@@ -181,12 +181,12 @@ Opt into Auto Router once on macOS:
 npx -y codex-model-sync router setup
 ```
 
-Fully quit and reopen the desktop app once after setup; review the four Auto Router hooks in Codex `/hooks`. No special prompt prefix, slash command or model-picker item is required. Sending a new message in a project starts a turn: the bridge assesses the task and project manifests, fetches the configured provider's models, selects a sufficient capability tier, ranks within it, and forwards the selected model to App Server. A native notice reports the accepted model. `跑起来看看` with a discovered entry, ordinary Git operations, and complex development follow their respective tiers.
+Fully quit and reopen the desktop app once after setup; review the four Auto Router hooks in Codex `/hooks`. No special prompt prefix, slash command or model-picker item is required. Sending a new message in a project starts a turn: the bridge first tries deterministic command dispatch. An eligible exact match executes through the native shell without model discovery or inference. Otherwise it assesses the task and project manifests, fetches the configured provider's models, selects a sufficient capability tier, ranks within it, and forwards the selected model to App Server. A native notice reports the accepted model. `跑起来看看` with a discovered entry, ordinary Git operations, and complex development follow their respective tiers.
 
 Routing runs before eligible `turn/start` requests through this installed stdio bridge. Tool output, steering an already active turn and normal terminal `codex` sessions do not trigger a main-model switch. Hooks supply CLI context and specialist guidance; they cannot switch an already running model. This implementation uses local task rules and estimated model profiles, not a trained RouterLLM classifier.
 
 `router enable` / `router disable` change an installed router's policy for subsequent turns; `enable` alone does not install the desktop bridge. While routing is enabled it chooses the turn model automatically, overriding the picker selection. Disable it for manual model choice; synchronization continues independently. `router preview` is a dry run of model selection, not task execution, and reads models from the provider.
-The router reads **all model IDs from Codex's configured provider `/v1/models`** on every turn.
+For turns requiring a model, the router reads **all model IDs from Codex's configured provider `/v1/models`**. Rule-only shell turns skip the provider entirely.
 There is no GPT-family allowlist. GLM, DeepSeek, Kimi, Gemma, private models and future additions all enter the same inventory.
 
 ```sh
@@ -197,6 +197,43 @@ npx -y codex-model-sync router disable
 npx -y codex-model-sync router enable
 npx -y codex-model-sync router uninstall
 ```
+
+### 常用语工具分发：确定性意图路由 / LLM bypass
+
+这层叫 **确定性意图路由（deterministic intent routing）**，由规则引擎和命令分发器实现。命中后跳过大模型，通常称 **LLM bypass / fast path**。它不使用向量检索、语义分类模型或训练过的 RouterLLM 分类器。
+
+默认顺序是：**完整短句匹配 → 项目上下文和前置条件 → 工具直接执行 → 真实结果**；未命中、有歧义或执行环境不兼容，进入现有模型路由。复杂工作仍默认由强模型规划、经济模型执行明确子任务。
+
+| 输入 | 规则行为 |
+| --- | --- |
+| `当前分支` / `git branch --show-current` | Git 查询，无模型 |
+| `git状态` / `git status` | 工作区状态，无模型 |
+| `提交记录` / `git log` | 最近 10 条提交，无模型 |
+| `查看代码改动` / `git diff` | 工作区差异，无模型；禁用外部 diff/textconv |
+| `跑起来` / `跑起来看看` / `启动项目` | 项目启动入口唯一时直接执行 |
+| `构建项目` / `跑测试` / `npm run test` | 从本地清单解析实际命令；唯一匹配才执行 |
+| `不要推送` / `跑起来并修复报错` / 带额外参数的命令 | 交回模型理解，不按局部关键词执行 |
+| `提交代码` / `推送代码` / `合并分支` / `解决冲突` | 继续交给现有 Git 专用流程，检查范围、目标和状态 |
+
+在项目目录预览规则，无需配置供应商，也不会执行命令：
+
+```sh
+npx -y codex-model-sync router match "跑起来看看" --json
+npx -y codex-model-sync router match "当前分支" --json
+npx -y codex-model-sync router dispatch status
+npx -y codex-model-sync router dispatch off
+npx -y codex-model-sync router dispatch on
+```
+
+`match` 返回 `route: "tool"` 和结构化 `recipe`（`argv`、`cwd`、来源、动作），或 `clarify` / `llm` 及原因。多入口时返回候选，不猜测要启动哪个前后端；可进入具体子项目后重试。项目命令调用的是仓库脚本，并不保证依赖已安装或脚本内部没有副作用。扩展规则时新增“完整短句 → 已知动作”，工具保持结构化参数；不要把任意关键词后的文本拼成 shell 命令。实现入口见 [dispatch 模块](src/dispatch/README.md)。
+
+已安装 Auto Router 的用户升级后执行 `router setup`，退出并重启桌面端。规则层默认启用，位于 `/v1/models` 获取之前；命中显示 **“Auto 规则直达；模型：无”**。普通 `npx -y codex-model-sync` 保留原有同步行为。`router disable` 会同时关闭规则旁路和模型自动选择，`router dispatch off` 只关闭规则旁路。
+
+桌面适配使用原生 `thread/shellCommand`，原始短句保存在命令注释里；命令输出、退出码和会话记录由 App Server 产生，不伪造助手成功消息。该原生方法固定使用完整访问，因此这里只接受服务器已经确认的 **本地完整访问 + 无需审批** 会话，且必须非规划模式、无活动轮次、无附件/额外上下文或不兼容的环境/权限覆盖。条件不满足时保留正常模型和权限路径，绝不为旁路提升权限。Windows 暂不启用此 POSIX 执行适配，但 `match` 和原模型路由仍可用。原生协议验证基于 Codex Desktop `0.154.0-alpha.6.2`；旧服务器若拒绝此方法，会报告原生错误而不会重放任务，可用 `router dispatch off` 恢复原模型路径。
+
+启动类命令保持前台运行，可正常中断；POSIX 监督进程负责在结束、中断或超时时清理本次命令的进程组（主动另建会话脱离进程组的后台服务不在此范围）。默认上限一小时，可用 `policy.json` 的 `dispatch.timeoutMs` 调整到 1000–3600000 毫秒。进程启动不等于 HTTP/浏览器就绪；需要修复或浏览器验证的复合请求仍交回模型。非零退出、超时和中断保留真实失败结果，不自动重试有副作用的命令。原生中断会把历史结果记为中断，已流式显示的部分 stdout 不保证保留。
+
+这层对命中的用户轮次不发模型目录或推理请求；独立后台模型同步仍按原计划运行。节省比例取决于实际命中率，没有宣称固定百分比。
 
 ### Strong planner, economical executor
 
