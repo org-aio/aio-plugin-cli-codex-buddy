@@ -1,6 +1,6 @@
 {
   "name": "codex-buddy",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Codex companion for model sync, economical task routing, planning and deterministic tool dispatch.",
   "type": "module",
   "bin": {

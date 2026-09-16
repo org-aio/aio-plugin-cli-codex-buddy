@@ -8,7 +8,7 @@ Codex 的模型同步、按任务难度选模、强模型规划与经济模型�
 # 原有同步入口和所有子命令参数保持一致
 npx -y codex-buddy
 # 从 AIO 市场安装，同时把随包技能安装到 ~/.agents/skills/codex-buddy
-aio tool install codex-buddy --version 0.7.0
+aio tool install codex-buddy --version 0.7.1
 ```
 
 自动分发技能需要支持随包技能的 AIO CLI（2026.9.18+）。技能来源为 npm 包中的 `skills/codex-buddy/SKILL.md`；AIO 记录文件归属，卸载时仅清理未修改的文件。直接 `npm install` / `npx` 不会通过 npm 安装钩子写入个人技能目录。
