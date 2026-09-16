@@ -44,10 +44,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zjarlin/codex-buddy.git"
+    "url": "git+https://github.com/org-aio/aio-plugin-cli-codex-buddy.git"
   },
-  "homepage": "https://github.com/zjarlin/codex-buddy#readme",
+  "homepage": "https://github.com/org-aio/aio-plugin-cli-codex-buddy#readme",
   "bugs": {
-    "url": "https://github.com/zjarlin/codex-buddy/issues"
+    "url": "https://github.com/org-aio/aio-plugin-cli-codex-buddy/issues"
   }
 }
