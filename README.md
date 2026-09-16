@@ -1,9 +1,28 @@
-# codex-model-sync
+# Codex Buddy
+
+Codex 的模型同步、按任务难度选模、强模型规划与经济模型执行，以及常用语工具直达助手。
+
+## 安装与随包技能
+
+```sh
+# 原有同步入口和所有子命令参数保持一致
+npx -y codex-buddy
+# 从 AIO 市场安装，同时把随包技能安装到 ~/.agents/skills/codex-buddy
+aio tool install codex-buddy --version 0.7.0
+```
+
+自动分发技能需要支持随包技能的 AIO CLI（2026.9.18+）。技能来源为 npm 包中的 `skills/codex-buddy/SKILL.md`；AIO 记录文件归属，卸载时仅清理未修改的文件。直接 `npm install` / `npx` 不会通过 npm 安装钩子写入个人技能目录。
+
+### 从旧名称迁移
+
+项目原名 `codex-model-sync`，现使用 `codex-buddy`。如果安装过旧的全局 npm 包，执行 `npm uninstall -g codex-model-sync` 后安装 `npm install -g codex-buddy`。仅移除 npm 包即可；不要为改名运行旧 CLI 的 `uninstall` 子命令，它会恢复 Codex 配置。旧的 `npx -y codex-model-sync` 仍指向旧包，后续新版本使用新名称。
+
+新命令沿用已有 `model-sync`、`model-router` 数据目录和后台任务身份，保留目录备份、模型偏好与 hook 状态，不因改名创建第二个同步服务。执行 `codex-buddy router setup` 后重启桌面端，即可加载新版桥接。
 
 **One command for dynamic model discovery and catalog sync. Optional desktop Auto Router.**
 
 ```sh
-npx -y codex-model-sync
+npx -y codex-buddy
 ```
 
 This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
@@ -17,7 +36,7 @@ If Codex stops responding after setup, fully quit Codex and stop any foreground
 `watch` command with Ctrl+C, then run:
 
 ```sh
-npx -y codex-model-sync@latest uninstall
+npx -y codex-buddy@latest uninstall
 ```
 
 Reopen Codex after the command finishes. If you selected a provider-only model
@@ -40,7 +59,7 @@ whether config was restored. Running uninstall again is safe. Only explicit
 If you also installed the CLI globally, remove that package **after** rollback:
 
 ```sh
-npm uninstall -g codex-model-sync
+npm uninstall -g codex-buddy
 ```
 
 Removing the npm package alone does not undo Codex setup or its background task.
@@ -63,18 +82,18 @@ automatically. `--codex-bin` also accepts the npm `codex.cmd` launcher.
 The original commands and options remain supported: no arguments or `setup` installs model sync; `sync` refreshes once, `watch` runs foreground refreshes, `status` reports state, and `uninstall` restores the previous setup. Default/setup/sync/watch do not install, enable, disable or update a separately configured router. `--no-router` remains accepted for existing scripts, although setup is already sync-only. Release 0.4.0 also installed the router by default; 0.4.1 restores the original behavior. An already installed router stays in its chosen state; use `router disable` to stop routing while keeping model sync.
 
 ```sh
-npx -y codex-model-sync
-npx -y codex-model-sync sync
-npx -y codex-model-sync status --json
-npx -y codex-model-sync watch
-npx -y codex-model-sync uninstall
+npx -y codex-buddy
+npx -y codex-buddy sync
+npx -y codex-buddy status --json
+npx -y codex-buddy watch
+npx -y codex-buddy uninstall
 ```
 
 Or install globally:
 
 ```sh
-npm install -g codex-model-sync
-codex-model-sync
+npm install -g codex-buddy
+codex-buddy
 ```
 
 Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service` (no background sync or router), `--no-router`, `--json`.
@@ -120,7 +139,7 @@ Source modules separate configuration, catalog construction, synchronization, an
 
 ## Publishing and npm authentication
 
-This section is for maintainers publishing new versions. Running `npx -y codex-model-sync` as a user does not require an npm publishing token. npm credentials are separate from the Codex provider API key and the optional sub2api metrics key.
+This section is for maintainers publishing new versions. Running `npx -y codex-buddy` as a user does not require an npm publishing token. npm credentials are separate from the Codex provider API key and the optional sub2api metrics key.
 
 ### Why npm asks for verification on every publish
 
@@ -142,7 +161,7 @@ OIDC lets an authorized GitHub Actions workflow publish without a stored, long-l
 | --- | --- |
 | Provider | GitHub Actions |
 | Organization or user | `zjarlin` |
-| Repository | `codex-model-sync` |
+| Repository | `codex-buddy` |
 | Workflow filename | `aio-cli.yml` (in `.github/workflows/`) |
 | Environment | Match the workflow's environment exactly, or leave unset if unused |
 | Allowed actions | Enable direct **`npm publish`** for unattended releases |
@@ -172,13 +191,13 @@ As documented by npm in September 2026, direct publishing of new versions with g
 Model synchronization and routing have separate entry points. Keep using the original command for synchronization:
 
 ```sh
-npx -y codex-model-sync
+npx -y codex-buddy
 ```
 
 Opt into Auto Router once on macOS:
 
 ```sh
-npx -y codex-model-sync router setup
+npx -y codex-buddy router setup
 ```
 
 Fully quit and reopen the desktop app once after setup; review the four Auto Router hooks in Codex `/hooks`. No special prompt prefix, slash command or model-picker item is required. Sending a new message in a project starts a turn: the bridge first tries deterministic command dispatch. An eligible exact match executes through the native shell without model discovery or inference. Otherwise it assesses the task and project manifests, fetches the configured provider's models, selects a sufficient capability tier, ranks within it, and forwards the selected model to App Server. A native notice reports the accepted model. `跑起来看看` with a discovered entry, ordinary Git operations, and complex development follow their respective tiers.
@@ -190,12 +209,12 @@ For turns requiring a model, the router reads **all model IDs from Codex's confi
 There is no GPT-family allowlist. GLM, DeepSeek, Kimi, Gemma, private models and future additions all enter the same inventory.
 
 ```sh
-npx -y codex-model-sync router models --json
-npx -y codex-model-sync router preview "提交代码"
-npx -y codex-model-sync router status
-npx -y codex-model-sync router disable
-npx -y codex-model-sync router enable
-npx -y codex-model-sync router uninstall
+npx -y codex-buddy router models --json
+npx -y codex-buddy router preview "提交代码"
+npx -y codex-buddy router status
+npx -y codex-buddy router disable
+npx -y codex-buddy router enable
+npx -y codex-buddy router uninstall
 ```
 
 ### 常用语工具分发：确定性意图路由 / LLM bypass
@@ -218,16 +237,16 @@ npx -y codex-model-sync router uninstall
 在项目目录预览规则，无需配置供应商，也不会执行命令：
 
 ```sh
-npx -y codex-model-sync router match "跑起来看看" --json
-npx -y codex-model-sync router match "当前分支" --json
-npx -y codex-model-sync router dispatch status
-npx -y codex-model-sync router dispatch off
-npx -y codex-model-sync router dispatch on
+npx -y codex-buddy router match "跑起来看看" --json
+npx -y codex-buddy router match "当前分支" --json
+npx -y codex-buddy router dispatch status
+npx -y codex-buddy router dispatch off
+npx -y codex-buddy router dispatch on
 ```
 
 `match` 返回 `route: "tool"` 和结构化 `recipe`（`argv`、`cwd`、来源、动作），或 `clarify` / `llm` 及原因。多入口时返回候选，不猜测要启动哪个前后端；可进入具体子项目后重试。项目命令调用的是仓库脚本，并不保证依赖已安装或脚本内部没有副作用。扩展规则时新增“完整短句 → 已知动作”，工具保持结构化参数；不要把任意关键词后的文本拼成 shell 命令。实现入口见 [dispatch 模块](src/dispatch/README.md)。
 
-已安装 Auto Router 的用户升级后执行 `router setup`，退出并重启桌面端。规则层默认启用，位于 `/v1/models` 获取之前；命中显示 **“Auto 规则直达；模型：无”**。普通 `npx -y codex-model-sync` 保留原有同步行为。`router disable` 会同时关闭规则旁路和模型自动选择，`router dispatch off` 只关闭规则旁路。
+已安装 Auto Router 的用户升级后执行 `router setup`，退出并重启桌面端。规则层默认启用，位于 `/v1/models` 获取之前；命中显示 **“Auto 规则直达；模型：无”**。普通 `npx -y codex-buddy` 保留原有同步行为。`router disable` 会同时关闭规则旁路和模型自动选择，`router dispatch off` 只关闭规则旁路。
 
 桌面适配使用原生 `thread/shellCommand`，原始短句保存在命令注释里；命令输出、退出码和会话记录由 App Server 产生，不伪造助手成功消息。该原生方法固定使用完整访问，因此这里只接受服务器已经确认的 **本地完整访问 + 无需审批** 会话，且必须非规划模式、无活动轮次、无附件/额外上下文或不兼容的环境/权限覆盖。条件不满足时保留正常模型和权限路径，绝不为旁路提升权限。Windows 暂不启用此 POSIX 执行适配，但 `match` 和原模型路由仍可用。原生协议验证基于 Codex Desktop `0.154.0-alpha.6.2`；旧服务器若拒绝此方法，会报告原生错误而不会重放任务，可用 `router dispatch off` 恢复原模型路径。
 
@@ -242,12 +261,12 @@ Complex tasks now default to a **strong planner → bounded execution tasks → 
 Use exact IDs returned by your own `router models` command. For example, when these two IDs are available:
 
 ```sh
-npx -y codex-model-sync router planning --planner-model gpt-6 --executor-model deepseek-v4.1-flash
-npx -y codex-model-sync router preview "重构模块并实现新的接口"
-npx -y codex-model-sync router planning status
+npx -y codex-buddy router planning --planner-model gpt-6 --executor-model deepseek-v4.1-flash
+npx -y codex-buddy router preview "重构模块并实现新的接口"
+npx -y codex-buddy router planning status
 # Return both roles to automatic selection, or disable only this division of work:
-npx -y codex-model-sync router planning auto
-npx -y codex-model-sync router planning off
+npx -y codex-buddy router planning auto
+npx -y codex-buddy router planning off
 ```
 
 The names above are examples, not bundled model defaults. Explicit preferences are validated before saving. Each eligible turn rechecks the live directory; an unavailable/disabled/ineligible preference gets a clearly reported replacement. `preview` and `status` show `planning.planner`, `planning.executor`, up to five same-tier `executorCandidates` and `executorStatus: "recommended"`. The parent intersects those live candidates with its spawn tool's supported IDs, trying the configured preference first. If both primary roles resolve to the same model, the notice says the combination does not provide a model split.
@@ -258,7 +277,7 @@ The `plan-executor` role receives a compact packet containing the goal, working 
 
 **This division uses parent-agent orchestration and hooks.** The bridge selects the main planner; hooks do not create children or force a running agent to switch. The parent must be permitted to delegate and its spawn tool must support the selected model and handoff options. A provider ID appearing in `/v1/models` does not guarantee that a particular desktop spawn tool accepts it. Unsupported combinations must be reported, never described as cheap execution while silently inheriting the strong model. `SubagentStart` reports the actual child model; the main-turn notice labels the executor only as a candidate. See [Codex subagent model configuration](https://learn.chatgpt.com/docs/agent-configuration/subagents).
 
-Existing router installations need `router setup` again after upgrading to install the new bundle and role, then a desktop restart and review of changed hooks in `/hooks`. Policy/model preference changes after that take effect on subsequent turns without another restart. Ordinary `npx -y codex-model-sync` remains synchronization only.
+Existing router installations need `router setup` again after upgrading to install the new bundle and role, then a desktop restart and review of changed hooks in `/hooks`. Policy/model preference changes after that take effect on subsequent turns without another restart. Ordinary `npx -y codex-buddy` remains synchronization only.
 
 ### Lifecycle guidance and specialist roles
 
@@ -270,8 +289,8 @@ Project inspection reads bounded manifests from the nearest project, immediate s
 
 ```sh
 # Run in the project: local inspection, no model/provider call required.
-npx -y codex-model-sync router project --json
-npx -y codex-model-sync router preview "跑起来看看"
+npx -y codex-buddy router project --json
+npx -y codex-buddy router preview "跑起来看看"
 ```
 
 Confirmed routine entry points use `simple`; finding an entry or initial environment diagnosis uses `standard`. Mixed development, architecture and complex code failures retain `advanced`. Results must be verified through real process readiness, exit status, test output and browser checks where requested. Launching a command is not proof the application is running. This is rule-based routing; no traffic reduction percentage has been measured.
@@ -285,9 +304,9 @@ The tested desktop binary can send **only stdout** to a Bash hook, omitting the 
 These hooks **guide** model selection; they cannot change the model of an already running agent. A parent may choose a suggested model when creating an independently useful child task only if existing instructions permit delegation and the tool supports the relevant model/fork parameters. No hook creates agents, grants permission, replays operations, or claims a switch happened. Hook suggestions reuse the turn router's five-minute provider-bound snapshot, including fresh sub2api health weighting, and make no additional API calls. Missing/stale advice falls back to the current model. Only bounded hashed turn bookkeeping is stored, without prompts or tool output.
 
 ```bash
-npx -y codex-model-sync router hooks setup
-npx -y codex-model-sync router hooks status
-npx -y codex-model-sync router hooks uninstall
+npx -y codex-buddy router hooks setup
+npx -y codex-buddy router hooks status
+npx -y codex-buddy router hooks uninstall
 ```
 
 `router disable` also silences guidance; `policy.json` can independently disable it with `"hooks": { "enabled": false }`. The unified uninstall removes this package's hook commands and its unmodified Git/project operations and plan-executor profiles; user edits to those profiles are preserved. Hook installation currently requires a POSIX shell. See the [Codex hook contracts](https://learn.chatgpt.com/docs/hooks) for event behavior and trust requirements.
@@ -317,7 +336,7 @@ macOS setup uses `CODEX_CLI_PATH`, verified in the current desktop bundle. **Qui
 A dedicated read-only metrics key can improve routing using real per-model request success counts. It is separate from the inference key and restricted to one server-side group.
 
 ```sh
-npx -y codex-model-sync router health --health-key-file /absolute/private/metrics.key --health-group-id 6
+npx -y codex-buddy router health --health-key-file /absolute/private/metrics.key --health-group-id 6
 ```
 
 The router requests `/api/v1/router/models/health` on the **same origin** as the configured provider. The binding also fingerprints the current provider credential; after changing it, re-run `router health` for the correct group. The key is read from the private file, never included in logs, status, the model-assessment request or npm. Configure this optional endpoint on sub2api first.

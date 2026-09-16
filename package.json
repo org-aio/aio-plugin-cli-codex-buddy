@@ -1,10 +1,10 @@
 {
-  "name": "codex-model-sync",
-  "version": "0.6.0",
-  "description": "Dynamic Codex model discovery and task-aware Auto Router using your configured provider.",
+  "name": "codex-buddy",
+  "version": "0.7.0",
+  "description": "Codex companion for model sync, economical task routing, planning and deterministic tool dispatch.",
   "type": "module",
   "bin": {
-    "codex-model-sync": "dist/cli.mjs"
+    "codex-buddy": "dist/cli.mjs"
   },
   "files": [
     "dist/cli.mjs",
@@ -12,7 +12,10 @@
     "dist/hooks.mjs",
     "README.md",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "skills",
+    "aio-cli.json",
+    "AIO.md"
   ],
   "engines": {
     "node": ">=20"
@@ -41,10 +44,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zjarlin/codex-model-sync.git"
+    "url": "git+https://github.com/zjarlin/codex-buddy.git"
   },
-  "homepage": "https://github.com/zjarlin/codex-model-sync#readme",
+  "homepage": "https://github.com/zjarlin/codex-buddy#readme",
   "bugs": {
-    "url": "https://github.com/zjarlin/codex-model-sync/issues"
+    "url": "https://github.com/zjarlin/codex-buddy/issues"
   }
 }

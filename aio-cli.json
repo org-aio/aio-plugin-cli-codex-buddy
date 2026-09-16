@@ -1,7 +1,7 @@
 {
-  "id": "codex-model-sync",
-  "title": "Codex 模型同步与 Auto Router",
-  "command": "codex-model-sync",
+  "id": "codex-buddy",
+  "title": "Codex Buddy",
+  "command": "codex-buddy",
   "platforms": [
     "macos",
     "linux",

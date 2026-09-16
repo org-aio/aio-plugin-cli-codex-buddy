@@ -8,7 +8,7 @@ import { installService, uninstall } from './service/index.mjs';
 import { readJson } from './runtime/index.mjs';
 import { routerCommand } from './routing/commands.mjs';
 
-const help = `codex-model-sync [setup|sync|watch|status|uninstall|router] [options]
+const help = `codex-buddy [setup|sync|watch|status|uninstall|router] [options]
 
 setup       Sync models and install background sync (default; legacy behavior)
 sync        Sync once; read the current provider and API key again
@@ -85,11 +85,11 @@ try {
       if (action === 'setup' && !values.json) {
         if (result.service) console.log(`Automatic sync installed: every ${interval / 60} minutes.`);
         console.log('Restart running Codex clients to reload the model picker.');
-        console.log('Optional Auto Router: run codex-model-sync router setup, then restart the desktop app and review its hooks in /hooks.');
+        console.log('Optional Auto Router: run codex-buddy router setup, then restart the desktop app and review its hooks in /hooks.');
       }
     }
   }
 } catch (error) {
-  console.error(`codex-model-sync: ${error.message}`);
+  console.error(`codex-buddy: ${error.message}`);
   process.exitCode = 1;
 }
