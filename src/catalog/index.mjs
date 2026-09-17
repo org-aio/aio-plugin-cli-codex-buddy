@@ -31,7 +31,19 @@ export function buildCatalog(listing, existing, bundled, manifest = {}) {
   const remote = indexModels(manifest.models || [], 'slug', true);
   const models = [...ids.keys()].map((slug, index) => ({
     ...(native.get(slug) || previous.get(slug) || remote.get(slug) || genericModel(slug)),
+    ...inputCapabilities(remote.get(slug)),
     slug, display_name: slug, visibility: 'list', supported_in_api: true, priority: index + 1,
   }));
   return { models };
+}
+
+// 网关可动态提供或撤回视觉辅助；旧目录和客户端内置值不能覆盖当前能力。
+function inputCapabilities(model) {
+  const modalities = model?.input_modalities;
+  if (!Array.isArray(modalities) || !modalities.length ||
+      !modalities.every(value => value === 'text' || value === 'image')) return {};
+  return {
+    input_modalities: [...new Set(modalities)],
+    supports_image_detail_original: modalities.includes('image') && model.supports_image_detail_original === true,
+  };
 }
