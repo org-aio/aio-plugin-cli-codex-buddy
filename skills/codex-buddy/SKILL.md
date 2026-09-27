@@ -11,6 +11,7 @@ description: 配置和诊断 Codex Buddy 的供应商模型同步、Auto Router�
 - 路由安装：`router setup`；查看：`router status`；切换：`router enable` / `router disable`；卸载：`router uninstall`。桥接或 hooks 更新后需要重启桌面端，修改过的 hooks 由用户在 `/hooks` 复核。
 - 模型目录：`router models --json`。真实模型 ID 从当前 Codex 供应商 `/v1/models` 获取；不根据这份技能或模型名字编造实时可用性、价格、能力和成功率。
 - 规划执行：`router planning --planner-model ID --executor-model ID`，也支持 `auto` / `off` / `status`。父模型负责规划和验收，执行模型只是候选；以实际子代理启动模型为准，并遵守当前委派权限和工具支持范围。
+- 工具能力：从当前客户端真实的子代理工具定义记录 `{ "source": "客户端/工具名", "observedAt": "实际观察时间 ISO8601", "models": [{ "id": "真实支持的 ID", "efforts": [] }] }`，用 `router planning --executor-capabilities PATH` 导入。不得从供应商目录猜测工具支持范围；未声明推理强度时用空数组。清单有效期 24 小时，切换客户端或工具后重新记录。执行候选先取供应商合格目录与此清单的交集；缺失、过期或空交集时保留主代理，不推荐执行模型。创建前仍核对本轮工具约束。
 - 项目入口：在目标项目执行 `router project --json`。`router preview "任务"` 会读取供应商并预览模型选择，不执行任务。
 - 零模型预览：`router match "跑起来看看" --json`。它只读本地上下文，返回 tool / clarify / llm；不执行命令，不访问供应商。`router dispatch on|off|status` 控制工具直达。
 

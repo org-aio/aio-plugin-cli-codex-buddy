@@ -97,7 +97,9 @@ test('advice follows provider credentials, expiry, model overrides and fresh sco
   const home = await fixture(t);
   await writeFile(join(home, 'config.toml'), 'model = "private/coder"\nmodel_provider = "test"\n[model_providers.test]\nname = "test"\nbase_url = "http://127.0.0.1:9999/v1"\nhttp_headers = { Authorization = "Bearer TEST_ONLY" }\n');
   const connection = await readConnection(home);
-  const policy = { ...defaultPolicy, health: { providerBinding: connectionBinding(connection), groupId: 6 } };
+  const policy = { ...defaultPolicy, planning: { ...defaultPolicy.planning, executorCapabilities: {
+    source: 'fixture/spawn', observedAt: new Date().toISOString(), models: ['private/fast', 'private/coder', 'private/architect'].map(id => ({ id, efforts: [] })),
+  } }, health: { providerBinding: connectionBinding(connection), groupId: 6 } };
   const models = [
     { id: 'private/fast', purpose: 'general', tools: true, economy: 100, capability: 80, health: { samples: 100, minimumSamples: 10, successRate: 0 } },
     { id: 'private/coder', purpose: 'general', tools: true, economy: 30, capability: 85 },
@@ -105,6 +107,10 @@ test('advice follows provider credentials, expiry, model overrides and fresh sco
   ];
   await saveAdvice(home, connection, { models }, { dataThrough: new Date().toISOString(), groupId: 6 });
   assert.equal((await loadAdvice(home, policy)).simple, 'private/coder');
+  const unknownTool = await loadAdvice(home, { ...policy, planning: defaultPolicy.planning });
+  assert.equal(unknownTool.simple, null);
+  assert.equal(unknownTool.advanced, null);
+  assert.deepEqual(unknownTool.modelTiers, {});
   assert.equal((await loadAdvice(home, { ...policy, health: { ...policy.health, groupId: 7 } })).simple, 'private/fast');
   assert.equal((await loadAdvice(home, { ...policy, models: { 'private/fast': { disabled: true } } })).simple, 'private/coder');
   const file = join(home, 'model-router/advice.json');

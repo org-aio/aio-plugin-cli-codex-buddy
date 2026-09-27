@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'smol-toml';
 import { editCatalogSetting, modelUrl, readConnection } from '../src/config/index.mjs';
-import { genericModel, buildCatalog } from '../src/catalog/index.mjs';
+import { genericModel, buildCatalog, visibleModelIds } from '../src/catalog/index.mjs';
 import { launchAgent, userService, windowsTask, windowsArg, serviceId } from '../src/service/templates.mjs';
 
 test('provider URL preserves configured API prefixes', () => {
@@ -44,20 +44,21 @@ test('credentials use explicit env_key, auth file and configured headers without
   assert.equal((await readConnection(home, {})).headers.get('Authorization'), 'Bearer fixture-command-key');
 });
 
-test('only API IDs appear, in API order, while matching models retain their capabilities', () => {
+test('API IDs stay in order, manifest-only IDs are appended, and matching models retain capabilities', () => {
   const native = { ...genericModel('native'), display_name: 'Old label', supported_reasoning_levels: [{ effort: 'xhigh', description: 'native' }] };
   const existing = { models: [{ ...genericModel('removed') }, { ...genericModel('internal'), visibility: 'hide' }] };
   const bundled = { models: [native, genericModel('bundled-only')] };
   const manifest = { models: [genericModel('manifest-only')] };
   const listing = { data: [{ id: 'new' }, { id: 'native' }] };
   const output = buildCatalog(listing, existing, bundled, manifest);
-  assert.deepEqual(output.models.map(model => model.slug), ['new', 'native']);
-  assert.deepEqual(output.models.map(model => model.display_name), ['new', 'native']);
+  assert.deepEqual([...visibleModelIds(listing, manifest).keys()], ['new', 'native', 'manifest-only']);
+  assert.deepEqual(output.models.map(model => model.slug), ['new', 'native', 'manifest-only']);
+  assert.deepEqual(output.models.map(model => model.display_name), ['new', 'native', 'manifest-only']);
   assert.deepEqual(output.models[1].supported_reasoning_levels, native.supported_reasoning_levels);
   assert.deepEqual(buildCatalog(listing, output, bundled, manifest), output);
   const reversed = buildCatalog({ data: [...listing.data].reverse() }, output, bundled, manifest);
-  assert.deepEqual(reversed.models.map(model => model.slug), ['native', 'new']);
-  assert.deepEqual(buildCatalog({ data: [{ id: 'new' }] }, output, bundled, manifest).models.map(model => model.slug), ['new']);
+  assert.deepEqual(reversed.models.map(model => model.slug), ['native', 'new', 'manifest-only']);
+  assert.deepEqual(buildCatalog({ data: [{ id: 'new' }] }, output, bundled, manifest).models.map(model => model.slug), ['new', 'manifest-only']);
   assert.throws(() => buildCatalog({ data: [] }, existing, bundled), /empty/);
   assert.throws(() => buildCatalog({ data: [{ id: 'x' }, { id: 'x' }] }, existing, bundled), /duplicate/);
 });

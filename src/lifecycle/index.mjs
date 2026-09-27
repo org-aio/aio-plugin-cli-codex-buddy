@@ -20,7 +20,7 @@ export async function runHook(home, input) {
     const [project, advice] = await Promise.all([inspectProject(input.cwd), loadAdvice(home, policy)]);
     const assessment = await assess([{ type: 'text', text: input.prompt }], input.cwd, project);
     const planning = assessment.tier === 'advanced' ? advice?.planning : null;
-    const executor = planning ? await findAgent(home, input.cwd, advice, { ...definitions.execution, model: planning.executor.model }, planning.executor.taskTier) : null;
+    const executor = planning?.executor ? await findAgent(home, input.cwd, advice, { ...definitions.execution, model: planning.executor.model }, planning.executor.taskTier) : null;
     const planningContext = planningGuidance(planning, executor);
     const definition = definitions[assessment.intent];
     if (!definition) {

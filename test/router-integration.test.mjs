@@ -94,7 +94,8 @@ test('live planning preferences route the main turn while reporting the worker o
   const f = await fixture(t);
   f.remote.ids = ['fixture/planner', 'fixture/strong', 'fixture/worker'];
   f.remote.profiles = { 'fixture/planner': { capability: 94 }, 'fixture/strong': { capability: 98 }, 'fixture/worker': { capability: 75, economy: 95 } };
-  await atomicWrite(join(f.home, 'model-router/policy.json'), { planning: { plannerModel: 'fixture/planner', executorModel: 'fixture/worker' } });
+  await atomicWrite(join(f.home, 'model-router/policy.json'), { planning: { plannerModel: 'fixture/planner', executorModel: 'fixture/worker',
+    executorCapabilities: { source: 'fixture/spawn', observedAt: new Date().toISOString(), models: ['fixture/worker', 'fixture/new-worker'].map(id => ({ id, efforts: [] })) } } });
   const result = await f.call('turn/start', params('设计并重构复杂模块'));
   assert.equal(result.result.seen.model, 'fixture/planner');
   assert.equal(result.result.seen.approvalPolicy, 'never');
@@ -134,6 +135,17 @@ test('stdio bridge changes models on live list changes and reports the accepted 
   const status = await readFile(join(f.home, 'model-router', 'status.json'), 'utf8');
   assert.ok(!status.includes('never-log-this'));
   assert.ok(!status.includes('提交代码'));
+});
+
+test('missing tool capabilities preserve advanced routing and never announce an executor', async t => {
+  const f = await fixture(t);
+  const result = await f.call('turn/start', params('设计并重构复杂模块'));
+  assert.equal(result.result.seen.model, 'gpt-6-astra');
+  assert.ok(f.messages.some(m => /无可用执行模型：tool-capabilities-missing/.test(m.params?.message || '')));
+  assert.ok(!f.messages.some(m => /执行候选：/.test(m.params?.message || '')));
+  await f.finish();
+  const state = await readJson(join(f.home, 'model-router/status.json'));
+  assert.equal(state.planning.executor, null);
 });
 
 test('interrupt during discovery prevents the queued turn from starting', async t => {

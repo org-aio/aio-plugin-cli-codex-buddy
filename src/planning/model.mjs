@@ -1,9 +1,12 @@
+import { normalizeExecutorCapabilities } from './capabilities.mjs';
+
 export const defaultPlanning = {
   enabled: true,
   plannerModel: null,
   executorModel: null,
   executorTier: 'standard',
   maxAttempts: 2,
+  executorCapabilities: null,
 };
 
 export function normalizePlanning(saved = {}) {
@@ -13,5 +16,5 @@ export function normalizePlanning(saved = {}) {
     || ['plannerModel', 'executorModel'].some(key => value[key] !== null && (typeof value[key] !== 'string' || !value[key].trim() || /[\u0000-\u001f\u007f]/.test(value[key])))) {
     throw new Error('Invalid planning policy. Use live model IDs, simple|standard executorTier and 1–3 maxAttempts.');
   }
-  return value;
+  return { ...value, executorCapabilities: normalizeExecutorCapabilities(value.executorCapabilities) };
 }

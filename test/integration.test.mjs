@@ -20,13 +20,17 @@ async function fixture(t) {
   const binary = join(home, 'fake-codex.mjs');
   await writeFile(binary, `#!${process.execPath}\nimport fs from 'node:fs';\nconst args = process.argv.slice(2);\nif (args.includes('--version')) console.log('codex-cli 0.153.4');\nelse if (args.includes('--bundled')) console.log(${JSON.stringify(JSON.stringify({ models: [native] }))});\nelse {\n if (fs.existsSync(${JSON.stringify(join(home, 'validation-fails'))})) process.exit(2);\n const value = args.find(arg => arg.startsWith('model_catalog_json='));\n console.log(fs.readFileSync(JSON.parse(value.slice(value.indexOf('=') + 1)), 'utf8'));\n}\n`);
   await chmod(binary, 0o755);
-  const state = { ids: ['native', 'old-custom'], httpStatus: 200, requests: [], key: 'fixture-key', manifestStatus: 404 };
+  const state = { ids: ['native', 'old-custom'], httpStatus: 200, requests: [], key: 'fixture-key', manifestStatus: 404, manifestIds: [] };
   const server = createServer((request, response) => {
     state.requests.push({ url: request.url, authorization: request.headers.authorization });
     if (request.headers.authorization !== `Bearer ${state.key}`) {
       response.writeHead(401).end('{}'); return;
     }
-    if (request.url.includes('client_version')) { response.writeHead(state.manifestStatus).end('{}'); return; }
+    if (request.url.includes('client_version')) {
+      response.writeHead(state.manifestStatus, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ models: state.manifestIds.map(slug => ({ slug })) }));
+      return;
+    }
     response.writeHead(state.httpStatus, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ object: 'list', data: state.ids.map(id => ({ id })) }));
   });
@@ -79,6 +83,22 @@ test('packaged CLI configures from auth.json, tracks additions/removals and rere
   assert.equal(JSON.parse((await run('uninstall')).stdout).restored, false);
   await run('setup', '--no-service');
   await run('sync');
+});
+
+test('packaged CLI appends manifest-only IDs to the provider model list', async t => {
+  const { home, state, run } = await fixture(t);
+  state.ids = ['native'];
+  state.manifestStatus = 200;
+  state.manifestIds = ['manifest-only'];
+  const first = JSON.parse((await run('setup', '--no-service')).stdout);
+  assert.equal(first.visibleCount, 2);
+  assert.deepEqual(first.added, ['manifest-only', 'native']);
+  const path = join(home, 'model-sync', 'catalog.json');
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).models.map(model => model.slug), ['native', 'manifest-only']);
+  const unchangedMtime = (await stat(path)).mtimeMs;
+  const second = JSON.parse((await run('sync')).stdout);
+  assert.equal(second.changed, false);
+  assert.equal((await stat(path)).mtimeMs, unchangedMtime);
 });
 
 test('failed HTTP, empty list, duplicate IDs, and Codex rejection preserve the last catalog', async t => {

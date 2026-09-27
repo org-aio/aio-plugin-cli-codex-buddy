@@ -2,6 +2,7 @@ const label = value => JSON.stringify(String(value).slice(0, 160));
 
 export function planningGuidance(plan, agent) {
   if (!plan) return '';
+  if (!plan.executor) return `规划执行分工未生效：无可用执行模型（${label(plan.executorReason)}）。由主代理继续处理，不从供应商目录猜测子代理模型。请刷新当前客户端工具能力清单；不绕过工具约束。`;
   const role = agent ? `已发现执行角色 ${label(agent.name)}；` : '优先查询运行时的 plan-executor 执行角色；';
   const alternatives = (plan.executorCandidates || []).slice(1).map(item => `${label(item.model)}${item.effort ? `/${item.effort}` : ''}`).join('、');
   return `复杂任务采用规划与执行分工：规划/验收候选 ${label(plan.planner.model)}，执行候选 ${label(plan.executor.model)}，执行子任务起点 ${plan.executor.taskTier}。` +

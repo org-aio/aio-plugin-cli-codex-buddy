@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { readConnection, editCatalogSetting } from '../config/index.mjs';
 import { findBinary } from '../runtime/binary.mjs';
 import { atomicWrite, command, readJson, withLock } from '../runtime/index.mjs';
-import { buildCatalog, indexModels } from '../catalog/index.mjs';
+import { buildCatalog, indexModels, visibleModelIds } from '../catalog/index.mjs';
 import { fetchJson } from './http.mjs';
 
 export async function syncModels(home, { codexBin, setup = false } = {}) {
@@ -33,6 +33,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
       } catch { /* Standard OpenAI-compatible servers need not implement a Codex manifest. */ }
       const existing = connection.catalogPath ? await readJson(connection.catalogPath, {}) : {};
       const catalog = buildCatalog(listing, existing, bundled, manifest);
+      const visible = visibleModelIds(listing, manifest);
       const current = await readJson(catalogPath, {});
       const changed = !isDeepStrictEqual(current, catalog);
       if (changed) {
@@ -40,7 +41,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
         try {
           await atomicWrite(candidate, catalog);
           const loaded = JSON.parse(await command(binary, ['debug', 'models', '-c', `model_catalog_json=${JSON.stringify(candidate)}`]));
-          const expected = [...indexModels(listing.data, 'id').keys()].sort();
+          const expected = [...visible.keys()].sort();
           const actual = [...indexModels(loaded.models, 'slug').keys()].sort();
           if (!isDeepStrictEqual(expected, actual)) throw new Error('Codex catalog does not exactly match the provider model list.');
         } finally { await rm(candidate, { force: true }); }
@@ -58,7 +59,7 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
       }
       await atomicWrite(join(directory, 'state.json'), { ...state, configured: true, uninstalled: false, codexBinary: binary });
       const before = new Set((existing.models || []).map(model => model.slug));
-      const after = new Set(listing.data.map(model => model.id));
+      const after = new Set(visible.keys());
       const result = {
         ok: true, checkedAt: new Date().toISOString(), changed, provider: connection.providerId,
         endpoint: connection.url.origin + connection.url.pathname, visibleCount: after.size,

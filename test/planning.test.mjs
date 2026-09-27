@@ -20,7 +20,56 @@ import { configurePlanning } from '../src/planning/commands.mjs';
 
 const profile = (id, capability, economy, extra = {}) => ({ id, capability, economy, tools: true, purpose: 'general', ...extra });
 const models = [profile('fixture/strong', 98, 10), profile('fixture/planner', 94, 30), profile('fixture/worker', 75, 95), profile('fixture/balanced', 89, 50), profile('fixture/tiny', 40, 100)];
-const policy = normalizePolicy();
+const capabilities = { source: 'fixture/spawn', observedAt: new Date().toISOString(), models: models.map(({ id }) => ({ id, efforts: ['low', 'high'] })) };
+const planningPolicy = (planning = {}) => normalizePolicy({ planning: { executorCapabilities: capabilities, ...planning } });
+const policy = planningPolicy();
+
+test('executor filtering precedes ranking and the five-candidate limit; planner is not constrained', () => {
+  const unsupported = Array.from({ length: 8 }, (_, i) => profile(`fixture/unsupported-${i}`, 80, 100));
+  const restricted = planningPolicy({ executorModel: 'fixture/unsupported-0', executorCapabilities: {
+    ...capabilities, models: [{ id: 'fixture/balanced', efforts: ['high'] }],
+  } });
+  const plan = selectPlanning([...unsupported, ...models], restricted, null, [
+    { slug: 'fixture/balanced', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }], default_reasoning_level: 'low' },
+  ]);
+  assert.equal(plan.planner.model, 'fixture/strong');
+  assert.deepEqual(plan.executorCandidates.map(m => m.model), ['fixture/balanced']);
+  assert.equal(plan.executor.effort, 'high');
+  assert.equal(plan.executor.preferredUnavailableReason, 'tool-model-unsupported');
+  assert.equal(selectPlanning(models, restricted).executor.effort, null);
+  assert.equal(selectPlanning(models, restricted, null, [
+    { slug: 'fixture/balanced', supported_reasoning_levels: [{ effort: 'low' }], default_reasoning_level: 'low' },
+  ]).executor.effort, null);
+});
+
+test('missing, expired, future and disjoint tool inventories fail closed without losing the planner', () => {
+  const cases = [
+    [null, 'tool-capabilities-missing'],
+    [{ ...capabilities, observedAt: '2000-01-01T00:00:00Z' }, 'tool-capabilities-stale'],
+    [{ ...capabilities, observedAt: new Date(Date.now() + 3600000).toISOString() }, 'tool-capabilities-stale'],
+    [{ ...capabilities, models: [] }, 'no-compatible-executor'],
+    [{ ...capabilities, models: [{ id: 'fixture/not-in-provider', efforts: [] }] }, 'no-compatible-executor'],
+    [{ ...capabilities, models: [{ id: 'fixture/tiny', efforts: [] }] }, 'no-compatible-executor'],
+  ];
+  for (const [executorCapabilities, reason] of cases) {
+    const plan = selectPlanning(models, planningPolicy({ executorCapabilities }));
+    assert.equal(plan.planner.model, 'fixture/strong');
+    assert.equal(plan.executor, null);
+    assert.equal(plan.mode, 'planner-only');
+    assert.deepEqual(plan.executorCandidates, []);
+    assert.equal(plan.executorReason, reason);
+    assert.match(planningGuidance(plan), /无可用执行模型/);
+    assert.match(notice('t', { model: plan.planner.model, planning: plan }).params.message, /主代理继续/);
+    assert.match(guidance({ hook_event_name: 'PostToolUse' }, { planning: plan }).hookSpecificOutput.additionalContext, /无可用执行模型/);
+  }
+});
+
+test('capability input is validated instead of silently widening executor access', () => {
+  for (const executorCapabilities of [{}, { ...capabilities, models: [{ id: 'x', efforts: null }] },
+    { ...capabilities, models: [{ id: 'x', efforts: [] }, { id: 'x', efforts: [] }] }]) {
+    assert.throws(() => planningPolicy({ executorCapabilities }), /Invalid executor capabilities/);
+  }
+});
 
 test('complex work uses an advanced planner with a separate economical bounded executor', () => {
   const plan = selectPlanning(models, policy, 'fixture/strong', [{ slug: 'fixture/worker', supported_reasoning_levels: [{ effort: 'low' }], default_reasoning_level: 'medium' }]);
@@ -32,11 +81,11 @@ test('complex work uses an advanced planner with a separate economical bounded e
   assert.equal(plan.distinctModels, true);
   assert.deepEqual(plan.executorCandidates.map(item => item.model), ['fixture/worker', 'fixture/balanced']);
   assert.ok(plan.executorCandidates.every(item => item.modelTier === 'standard'));
-  assert.equal(selectPlanning(models, normalizePolicy({ planning: { executorTier: 'simple' } })).executor.model, 'fixture/tiny');
+  assert.equal(selectPlanning(models, planningPolicy({ executorTier: 'simple' })).executor.model, 'fixture/tiny');
 });
 
 test('explicit live role preferences, disappeared models, uncertainty and disabling are handled', () => {
-  const pinned = normalizePolicy({ planning: { plannerModel: 'fixture/planner', executorModel: 'fixture/balanced' } });
+  const pinned = planningPolicy({ plannerModel: 'fixture/planner', executorModel: 'fixture/balanced' });
   const plan = selectPlanning(models, pinned);
   assert.equal(plan.planner.model, 'fixture/planner');
   assert.equal(plan.executor.model, 'fixture/balanced');
@@ -44,7 +93,7 @@ test('explicit live role preferences, disappeared models, uncertainty and disabl
   const replaced = selectPlanning(models.filter(m => m.id !== 'fixture/balanced'), pinned);
   assert.equal(replaced.executor.model, 'fixture/worker');
   assert.equal(replaced.executor.preferredAvailable, false);
-  const uncertain = selectPlanning([...models, profile('fixture/unknown', 100, 100, { tools: null })], normalizePolicy({ planning: { executorModel: 'fixture/unknown' } }));
+  const uncertain = selectPlanning([...models, profile('fixture/unknown', 100, 100, { tools: null })], planningPolicy({ executorModel: 'fixture/unknown' }));
   assert.equal(uncertain.executor.model, 'fixture/worker');
   assert.equal(uncertain.executor.preferredAvailable, false);
   assert.equal(selectPlanning(models, normalizePolicy({ planning: { enabled: false } })), null);
@@ -84,6 +133,7 @@ test('fresh advice gives complex prompts a task packet without affecting simple 
   await writeFile(join(home, 'package.json'), '{"scripts":{"dev":"vite"}}');
   await installAgent(home, execution);
   const connection = await readConnection(home);
+  await atomicWrite(join(home, 'model-router/policy.json'), policy);
   await saveAdvice(home, connection, { models }, {});
   const input = { hook_event_name: 'UserPromptSubmit', cwd: home, prompt: '重构模块并设计新的接口' };
   const output = await runHook(home, input);
@@ -116,7 +166,7 @@ test('configuration checks live role IDs before committing and supports automati
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(home, { recursive: true, force: true }); });
   await writeFile(join(home, 'config.toml'), `model="fixture/strong"\nmodel_provider="fixture"\n[model_providers.fixture]\nbase_url="http://127.0.0.1:${server.address().port}/v1"\nexperimental_bearer_token="TEST_ONLY"\n`);
   const file = join(home, 'model-router/policy.json');
-  await atomicWrite(file, { enabled: true, assessment: 'heuristic', models: Object.fromEntries(models.map(m => [m.id, m])) });
+  await atomicWrite(file, { ...policy, enabled: true, assessment: 'heuristic', models: Object.fromEntries(models.map(m => [m.id, m])) });
   const before = await readFile(file, 'utf8');
   await assert.rejects(configurePlanning(home, '', { plannerModel: 'fixture/missing' }), /策略未修改/);
   assert.equal(await readFile(file, 'utf8'), before);
@@ -126,6 +176,15 @@ test('configuration checks live role IDs before committing and supports automati
   const automatic = await configurePlanning(home, 'auto');
   assert.equal(automatic.planning.plannerModel, null);
   assert.equal(automatic.selection.planner.model, 'fixture/strong');
+  const capabilityFile = join(home, 'spawn.json');
+  await writeFile(capabilityFile, JSON.stringify({ ...capabilities, models: [] }));
+  const blocked = await configurePlanning(home, '', { executorCapabilities: capabilityFile });
+  assert.equal(blocked.selection.executorStatus, 'unavailable');
+  assert.equal(blocked.selection.executorReason, 'no-compatible-executor');
+  const saved = await readFile(file, 'utf8');
+  await writeFile(capabilityFile, '{');
+  await assert.rejects(configurePlanning(home, '', { executorCapabilities: capabilityFile }));
+  assert.equal(await readFile(file, 'utf8'), saved);
   const priorRequests = requests;
   assert.equal((await configurePlanning(home, 'off')).planning.enabled, false);
   assert.equal(requests, priorRequests);

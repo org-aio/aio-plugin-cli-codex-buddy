@@ -24,6 +24,7 @@ uninstall   Remove the background task and restore the prior catalog setting
 --no-router       Legacy flag; setup already leaves Auto Router unchanged
 --planner-model ID   Preferred live model for complex-task planning/review
 --executor-model ID  Preferred live model for bounded implementation
+--executor-capabilities PATH  JSON snapshot of this client's spawn tool models (valid for 24h)
 --executor-tier TIER simple|standard (default: standard); used by router planning
 --json            Print machine-readable results
 --help            Show this help
@@ -38,7 +39,7 @@ try {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     home: { type: 'string' }, 'codex-bin': { type: 'string' }, interval: { type: 'string', default: '300' },
     'no-service': { type: 'boolean' }, 'no-router': { type: 'boolean' }, 'health-key-file': { type: 'string' }, 'health-group-id': { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
-    'planner-model': { type: 'string' }, 'executor-model': { type: 'string' }, 'executor-tier': { type: 'string' },
+    'planner-model': { type: 'string' }, 'executor-model': { type: 'string' }, 'executor-tier': { type: 'string' }, 'executor-capabilities': { type: 'string' },
   } });
   const action = positionals[0] || 'setup';
   if (values.version) console.log(typeof PACKAGE_VERSION === 'undefined' ? 'development' : PACKAGE_VERSION);
@@ -53,7 +54,7 @@ try {
       else if (result.visibleCount !== undefined) console.log(`${result.changed ? 'Updated' : 'Up to date'}: ${result.visibleCount} models. ${result.catalogPath}`);
       else console.log(JSON.stringify(result, null, 2));
     };
-    if (action === 'router') report(await routerCommand(positionals[1] || 'status', home, { codexBin: values['codex-bin'], prompt: positionals.slice(2).join(' '), healthKeyFile: values['health-key-file'], healthGroupId: Number(values['health-group-id']), plannerModel: values['planner-model'], executorModel: values['executor-model'], executorTier: values['executor-tier'] }));
+    if (action === 'router') report(await routerCommand(positionals[1] || 'status', home, { codexBin: values['codex-bin'], prompt: positionals.slice(2).join(' '), healthKeyFile: values['health-key-file'], healthGroupId: Number(values['health-group-id']), plannerModel: values['planner-model'], executorModel: values['executor-model'], executorTier: values['executor-tier'], executorCapabilities: values['executor-capabilities'] }));
     else if (action === 'status') report({ router: await routerCommand('status', home), ...await readJson(join(home, 'model-sync', 'status.json'), { ok: false, error: 'Not configured yet.' }), service: (await readJson(join(home, 'model-sync', 'state.json'), {})).service || null });
     else if (action === 'uninstall') {
       let router, routerError;

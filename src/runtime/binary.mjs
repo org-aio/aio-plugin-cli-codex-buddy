@@ -5,6 +5,20 @@ import { environmentPath } from './process.mjs';
 
 const npmLauncher = directory => join(directory, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
 
+// Windows 桌面端把 codex 可执行文件放在 <安装根>\resources\codex.exe；
+// 常见安装根为 %LOCALAPPDATA%\Programs\<应用名>，也兼容 %ProgramFiles% 等。
+const windowsDesktopApplications = ['Codex', 'ChatGPT', 'OpenAI Codex', '@openai\\codex'];
+
+const windowsDesktopRoots = env => [
+  env.LOCALAPPDATA && join(env.LOCALAPPDATA, 'Programs'),
+  env.APPDATA && join(env.APPDATA, 'Programs'),
+  env.ProgramFiles,
+  env['ProgramFiles(x86)'],
+].filter(Boolean);
+
+export const windowsDesktopCandidates = env => windowsDesktopRoots(env)
+  .flatMap(root => windowsDesktopApplications.map(application => join(root, application, 'resources', 'codex.exe')));
+
 export async function findBinary(explicit, env = process.env) {
   const directories = environmentPath(env).split(delimiter).filter(Boolean);
   const candidates = explicit ? [explicit] : [
@@ -12,7 +26,10 @@ export async function findBinary(explicit, env = process.env) {
     ...directories.flatMap(directory => process.platform === 'win32'
       ? [join(directory, 'codex.exe'), npmLauncher(directory)]
       : [join(directory, 'codex')]),
-    ...(process.platform === 'win32' && env.APPDATA ? [npmLauncher(join(env.APPDATA, 'npm'))] : []),
+    ...(process.platform === 'win32' ? [
+      ...(env.APPDATA ? [npmLauncher(join(env.APPDATA, 'npm'))] : []),
+      ...windowsDesktopCandidates(env),
+    ] : []),
     ...(process.platform === 'darwin' ? [
       '/Applications/ChatGPT.app/Contents/Resources/codex',
       '/Applications/Codex.app/Contents/Resources/codex',

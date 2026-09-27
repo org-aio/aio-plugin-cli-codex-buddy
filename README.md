@@ -96,7 +96,7 @@ npm install -g codex-buddy
 codex-buddy
 ```
 
-Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service` (no background sync or router), `--no-router`, `--json`.
+Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service` (no background sync or router), `--no-router`, `--planner-model ID`, `--executor-model ID`, `--executor-capabilities PATH`, `--executor-tier simple|standard`, `--json`.
 
 ## How configuration is discovered
 
@@ -108,7 +108,7 @@ Each refresh reads the configuration and credentials again. Keys are not copied 
 
 ## Model behavior and refresh limits
 
-The generated catalog contains exactly the IDs returned by `/v1/models`, in the same order, with each ID used as its display name. Previously configured, bundled, hidden, and manifest-only models are excluded unless their IDs appear in that response. Deleted API models disappear on the next successful sync. Native Codex definitions retain their tool and reasoning metadata; existing custom models retain their settings. If a server offers `models?client_version=...`, its metadata supplies new custom entries. Otherwise new models receive conservative text-only defaults, no configurable reasoning, and a 32,000-token context budget. These defaults are assumptions, not verified capabilities.
+The generated catalog keeps the IDs returned by `/v1/models` in their original order and appends IDs returned only by the provider's Codex manifest (`models?client_version=...`). This prevents a temporary or partial list response from hiding models that the same provider explicitly advertises to Codex. Each ID is used as its display name. Previously configured, bundled, and hidden models are excluded unless their IDs appear in one of those live responses. Deleted models disappear on the next successful sync. Native Codex definitions retain their tool and reasoning metadata; existing custom models retain their settings. If a server offers the manifest, its metadata supplies new custom entries. Otherwise new models receive conservative text-only defaults, no configurable reasoning, and a 32,000-token context budget. These defaults are assumptions, not verified capabilities.
 
 **Listing a model does not prove that it supports the Responses API, tools, or coding-agent use.** Image, moderation, and other specialized endpoints may appear if your provider includes them in its model list.
 
@@ -269,7 +269,27 @@ npx -y codex-buddy router planning auto
 npx -y codex-buddy router planning off
 ```
 
-The names above are examples, not bundled model defaults. Explicit preferences are validated before saving. Each eligible turn rechecks the live directory; an unavailable/disabled/ineligible preference gets a clearly reported replacement. `preview` and `status` show `planning.planner`, `planning.executor`, up to five same-tier `executorCandidates` and `executorStatus: "recommended"`. The parent intersects those live candidates with its spawn tool's supported IDs, trying the configured preference first. If both primary roles resolve to the same model, the notice says the combination does not provide a model split.
+The names above are examples, not bundled model defaults. Explicit preferences are validated before saving. Each eligible turn rechecks the live directory. Execution candidates are filtered against the current client's declared spawn-tool capabilities **before** ranking or taking the top five; the main planner is not restricted by the child tool's model list. Unsupported preferences can only fall back inside this intersection. Explicit reasoning effort must be supported by both catalogs; otherwise the parameter is omitted.
+
+The current hook input does not expose a spawn-tool schema. A host integration or operator must supply a snapshot copied from that client's actual tool definition, not from `/v1/models` or model-picker metadata. This snapshot is separate from the synchronized catalog: it limits which provider models may be selected as executors for this client.
+
+```json
+{
+  "source": "client-name/spawn-tool",
+  "observedAt": "2026-09-18T00:00:00Z",
+  "models": [{ "id": "ACTUAL_TOOL_MODEL_ID", "efforts": ["low", "high"] }]
+}
+```
+
+Use the actual observation time and IDs; an empty `efforts` list means omit explicit effort. Import the snapshot with the same command that sets planning preferences:
+
+```sh
+npx -y codex-buddy router planning --executor-capabilities /path/to/spawn-capabilities.json
+```
+
+You can combine it with explicit role preferences when needed. This stores the validated snapshot in the existing planning policy; it does not enable models in the client. The snapshot is valid for 24 hours and must be refreshed after a client or tool update; missing, expired or future-dated snapshots disable executor recommendations instead of guessing. Do not share this policy across clients with different spawn tools. The parent must still check its current tool definition before creating a child.
+
+Missing, expired, future-dated or disjoint snapshots produce `mode: "planner-only"`, `executor: null`, `executorCandidates: []`, `executorStatus: "unavailable"` and an `executorReason`. The main agent continues; no provider-only executor is advertised. Git/project hook candidates use the same tool filter. `preview` and `status` show available candidates as `executorStatus: "recommended"`, never as started children. A replaced preference includes `preferredUnavailableReason` (`provider-model-missing`, `tool-model-unsupported` or `provider-model-ineligible`). Health affects ranking, not eligibility. If both roles resolve to the same model, the notice reports that no model split was achieved.
 
 The executor's default task tier is `standard`, suitable for bounded implementation; `--executor-tier simple` is available for more mechanical work. Within the sufficient tier, executor ranking uses 90% estimated economy + 10% capability, weighted by valid health evidence, and requests `executorEffort: "low"` only when the catalog supports it. Planner selection retains advanced capability requirements. Prices are not measured by these estimates, and retries/context transfer also cost tokens; this is a cost-reduction strategy, not a claim of globally minimum spend.
 

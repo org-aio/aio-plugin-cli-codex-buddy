@@ -24,8 +24,16 @@ export function genericModel(id) {
   };
 }
 
-export function buildCatalog(listing, existing, bundled, manifest = {}) {
+export function visibleModelIds(listing, manifest = {}) {
   const ids = indexModels(listing.data, 'id');
+  for (const slug of indexModels(manifest.models || [], 'slug', true).keys()) {
+    if (!ids.has(slug)) ids.set(slug, { slug });
+  }
+  return ids;
+}
+
+export function buildCatalog(listing, existing, bundled, manifest = {}) {
+  const ids = visibleModelIds(listing, manifest);
   const previous = indexModels(existing.models || [], 'slug', true);
   const native = indexModels(bundled.models, 'slug');
   const remote = indexModels(manifest.models || [], 'slug', true);
