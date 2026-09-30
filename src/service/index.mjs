@@ -4,6 +4,17 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { atomicWrite, command, readJson } from '../runtime/index.mjs';
 import { serviceId, launchAgent, userService, userTimer, windowsTask } from './templates.mjs';
+import { removeService } from './remove.mjs';
+
+export async function removeManagedService(home) {
+  const path = join(home, 'model-sync', 'state.json');
+  const state = await readJson(path, {});
+  if (!state.service) return null;
+  const removal = await removeService(home, state.service);
+  await atomicWrite(path, { ...await readJson(path, state), service: removal.service });
+  if (removal.warnings.length) throw new Error(removal.warnings.join('; '));
+  return null;
+}
 
 export async function installService(home, interval) {
   if (typeof __BUNDLED__ === 'undefined') throw new Error('Run npm run build before installing the background service.');
@@ -22,6 +33,7 @@ export async function installService(home, interval) {
     await atomicWrite(files[0], launchAgent(values));
     try { await command('launchctl', ['bootout', `gui/${process.getuid()}/${id}`]); } catch { /* Not loaded yet. */ }
     await saveService(files);
+    await command('launchctl', ['enable', `gui/${process.getuid()}/${id}`]);
     await command('launchctl', ['bootstrap', `gui/${process.getuid()}`, files[0]]);
   } else if (process.platform === 'linux') {
     const folder = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'systemd', 'user');

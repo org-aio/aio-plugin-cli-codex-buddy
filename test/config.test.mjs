@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { parse } from 'smol-toml';
 import { editCatalogSetting, modelUrl, readConnection } from '../src/config/index.mjs';
 import { genericModel, buildCatalog, visibleModelIds } from '../src/catalog/index.mjs';
-import { launchAgent, userService, windowsTask, windowsArg, serviceId } from '../src/service/templates.mjs';
+import { launchAgent, userService, userTimer, windowsTask, windowsArg, serviceId } from '../src/service/templates.mjs';
 
 test('provider URL preserves configured API prefixes', () => {
   assert.equal(modelUrl('https://example.com').href, 'https://example.com/v1/models');
@@ -64,11 +64,13 @@ test('API IDs stay in order, manifest-only IDs are appended, and matching models
 });
 
 test('scheduler templates escape executable and argument paths', () => {
-  const options = { id: 'sample', home: '/home/a & b', directory: '/tmp/a & b', runtime: '/tmp/worker %.mjs', node: '/node $path', interval: 300, user: 'DOMAIN\\user' };
+  const options = { id: 'sample', home: '/home/a & b', directory: '/tmp/a & b', runtime: '/tmp/worker %.mjs', node: '/node $path', interval: 604800, user: 'DOMAIN\\user' };
   assert.match(launchAgent(options), /a &amp; b/);
+  assert.match(launchAgent(options), /<key>StartInterval<\/key><integer>604800<\/integer>/);
   assert.match(userService(options), /worker %%\.mjs/);
   assert.ok(userService(options).includes('/node $$path'));
-  assert.match(windowsTask(options), /PT5M/);
+  assert.match(userTimer(options), /OnUnitActiveSec=604800s/);
+  assert.match(windowsTask(options), /PT10080M/);
   assert.match(windowsTask(options), /a &amp; b/);
   assert.equal(windowsArg('C:\\test path\\'), '"C:\\test path\\\\"');
   assert.notEqual(serviceId('/home/a'), serviceId('/home/b'));

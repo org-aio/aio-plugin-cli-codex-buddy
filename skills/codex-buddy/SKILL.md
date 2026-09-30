@@ -5,9 +5,9 @@ description: 配置和诊断 Codex Buddy 的供应商模型同步、Auto Router�
 
 # Codex Buddy
 
-使用 `codex-buddy`；未全局安装时使用 `npx -y codex-buddy`。先查 `--help`、`status --json` 或对应 router 状态，结合真实结果操作。普通无参数命令是模型同步和后台任务安装，不会隐式开启桌面路由。
+使用 `codex-buddy`；未全局安装时使用 `npx -y codex-buddy`。先查 `--help`、`status --json` 或对应 router 状态，结合真实结果操作。普通无参数命令只做一次模型同步，不会安装后台任务或隐式开启桌面路由。
 
-- 同步：`sync`；默认安装：`setup`；前台跟随：`watch`；恢复配置并卸载后台集成：`uninstall`。
+- 同步：`sync`；配置：`setup`；后台同步：`setup --service [--interval SECONDS]`；前台跟随：`watch`；恢复配置并卸载后台集成：`uninstall`。后台周期默认 7 天，可配置为 60 秒至 7 天；普通 `setup` 会移除本工具之前安装的后台任务。
 - 路由安装：`router setup`；查看：`router status`；切换：`router enable` / `router disable`；卸载：`router uninstall`。桥接或 hooks 更新后需要重启桌面端，修改过的 hooks 由用户在 `/hooks` 复核。
 - 模型目录：`router models --json`。真实模型 ID 从当前 Codex 供应商 `/v1/models` 获取；不根据这份技能或模型名字编造实时可用性、价格、能力和成功率。
 - 规划执行：`router planning --planner-model ID --executor-model ID`，也支持 `auto` / `off` / `status`。父模型负责规划和验收，执行模型只是候选；以实际子代理启动模型为准，并遵守当前委派权限和工具支持范围。

@@ -28,7 +28,7 @@ npx -y codex-buddy
 This command works in PowerShell, Git Bash, and macOS/Linux terminals. It downloads
 the ready-to-run bundle from npm and requires no source build.
 
-Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, configures `model_catalog_json`, and installs a background sync every five minutes. The default command retains the original sync-only behavior. Auto Router is enabled separately with `router setup` on macOS. No URL or API key needs to be copied into this tool.
+Already configured Codex with a custom `base_url` and API key? That is all you need. This CLI reads your existing configuration, calls the provider's `/v1/models`, validates a Codex catalog, and configures `model_catalog_json`. Background synchronization is opt-in: `setup --service` installs it once per week by default, while `sync` and a plain `setup` refresh once and leave no scheduler behind. Auto Router is enabled separately with `router setup` on macOS. No URL or API key needs to be copied into this tool.
 
 ## Uninstall and restore Codex
 
@@ -68,7 +68,7 @@ Removing the npm package alone does not undo Codex setup or its background task.
 
 - Node.js 20+ and an installed Codex CLI with `codex debug models` support.
 - A configured OpenAI-compatible provider with a working model-list endpoint and API key.
-- macOS LaunchAgents, Linux user systemd, or Windows Task Scheduler for automatic background runs. Use `watch` or `--no-service` elsewhere.
+- macOS LaunchAgents, Linux user systemd, or Windows Task Scheduler for automatic background runs. Use `watch` or omit `--service` elsewhere.
 
 The CLI is tested locally on macOS with Codex 0.153.4. CI covers Linux and Windows,
 including installation of the packed CLI through Git Bash on Windows and Windows
@@ -79,11 +79,13 @@ automatically. `--codex-bin` also accepts the npm `codex.cmd` launcher.
 
 ## Commands
 
-The original commands and options remain supported: no arguments or `setup` installs model sync; `sync` refreshes once, `watch` runs foreground refreshes, `status` reports state, and `uninstall` restores the previous setup. Default/setup/sync/watch do not install, enable, disable or update a separately configured router. `--no-router` remains accepted for existing scripts, although setup is already sync-only. Release 0.4.0 also installed the router by default; 0.4.1 restores the original behavior. An already installed router stays in its chosen state; use `router disable` to stop routing while keeping model sync.
+The original commands remain supported: no arguments or `setup` refreshes model sync and removes any scheduler previously owned by this tool; `sync` refreshes once, `watch` runs foreground refreshes, `status` reports state, and `uninstall` restores the previous setup. Add `--service` to `setup` when automatic background refresh is wanted. `--interval` also opts in and records the requested interval. Default/setup/sync/watch do not install, enable, disable or update a separately configured router. `--no-router` remains accepted for existing scripts, although setup is already router-neutral. Release 0.4.0 also installed the router by default; 0.4.1 restores the original behavior. An already installed router stays in its chosen state; use `router disable` to stop routing while keeping model sync.
 
 ```sh
 npx -y codex-buddy
 npx -y codex-buddy sync
+npx -y codex-buddy setup --service
+npx -y codex-buddy setup --service --interval 604800
 npx -y codex-buddy status --json
 npx -y codex-buddy watch
 npx -y codex-buddy uninstall
@@ -96,7 +98,7 @@ npm install -g codex-buddy
 codex-buddy
 ```
 
-Options: `--home PATH`, `--codex-bin PATH`, `--interval SECONDS` (default 300, multiples of 60), `--no-service` (no background sync or router), `--no-router`, `--planner-model ID`, `--executor-model ID`, `--executor-capabilities PATH`, `--executor-tier simple|standard`, `--json`.
+Options: `--home PATH`, `--codex-bin PATH`, `--service` (install or update background sync; also enabled by `--interval`), `--interval SECONDS` (default 604800 when installing; `watch` defaults to 300; multiples of 60, maximum 604800), `--no-service` (legacy no-background flag), `--no-router`, `--planner-model ID`, `--executor-model ID`, `--executor-capabilities PATH`, `--executor-tier simple|standard`, `--json`.
 
 ## How configuration is discovered
 
@@ -104,13 +106,25 @@ The directory is `--home`, then `CODEX_HOME`, then `~/.codex`. The CLI reads the
 
 Authentication supports configured `Authorization` headers, `env_key`, command-based `provider.auth`, `experimental_bearer_token`, `OPENAI_API_KEY`, and `auth.json`'s `OPENAI_API_KEY`. An explicit missing `env_key` fails rather than falling back to another account. ChatGPT OAuth access tokens are not treated as provider API keys. Requests use the configured host and reject redirects.
 
-Each refresh reads the configuration and credentials again. Keys are not copied into the package, generated catalog, scheduler task, or status file. Environment-based credentials must also be available to the background service; file-based or command-based credentials avoid depending on an interactive shell's environment. Node and Codex executable paths are saved, so rerun setup after moving or removing those executables.
+Each refresh reads the configuration and credentials again. Keys are not copied into the package, generated catalog, scheduler task, or status file. Environment-based credentials must also be available to the background service; file-based or command-based credentials avoid depending on an interactive shell's environment. Node and Codex executable paths are saved, so rerun `setup --service` after moving or removing those executables.
 
 ## Model behavior and refresh limits
 
-The generated catalog keeps the IDs returned by `/v1/models` in their original order and appends IDs returned only by the provider's Codex manifest (`models?client_version=...`). This prevents a temporary or partial list response from hiding models that the same provider explicitly advertises to Codex. Each ID is used as its display name. Previously configured, bundled, and hidden models are excluded unless their IDs appear in one of those live responses. Deleted models disappear on the next successful sync. Native Codex definitions retain their tool and reasoning metadata; existing custom models retain their settings. If a server offers the manifest, its metadata supplies new custom entries. Otherwise new models receive conservative text-only defaults, no configurable reasoning, and a 32,000-token context budget. These defaults are assumptions, not verified capabilities.
+The generated catalog keeps the IDs returned by `/v1/models` in their original order and appends IDs returned only by the provider's Codex manifest (`models?client_version=...`). This prevents a temporary or partial list response from hiding models that the same provider explicitly advertises to Codex. Each ID is used as its display name. Previously configured, bundled, and hidden models are excluded unless their IDs appear in one of those live responses. Deleted models disappear on the next successful sync. Native Codex definitions retain their tool and reasoning metadata; existing custom models retain their settings. Input modalities use the current provider manifest's explicit declaration, falling back to the standard list's declaration and then existing metadata. This updates both added and removed image support instead of retaining a stale text-only catalog. If a server offers the manifest, its metadata supplies new custom entries. Otherwise new models without explicit metadata receive conservative text-only defaults, no configurable reasoning, and a 32,000-token context budget. These defaults are assumptions, not verified capabilities.
 
 **Listing a model does not prove that it supports the Responses API, tools, or coding-agent use.** Image, moderation, and other specialized endpoints may appear if your provider includes them in its model list.
+
+Sync output explicitly says `331 catalog models (availability not probed by sync)`. Sync/status JSON includes `verification.scope: "catalog_only"` and `verification.availability: "not_probed_by_sync"`; availability audit results are stored separately. The count means provider-advertised catalog entries, not verified working models.
+
+Run an explicit availability audit with `codex-buddy probe --json`. It reads the current provider catalog, then tests each text model with a short non-streaming Responses request and a required function call. The function is never executed. These requests can incur provider charges. Use `--model auto` (repeatable) for selected models, `--concurrency 4` to bound parallel models (1–16), and `--timeout-ms 30000` for each request (1,000–120,000 ms).
+
+Completed model checks are reused for **at least seven days** by default, including failures, timeouts and fallback results. Re-running the command during that window reads the catalog but makes no new inference requests for those models. `reusedCount`, `probedCount`, `reusedIds` and each result's `nextProbeAt` show what happened and when a new probe is due; existing timestamps are preserved. Use `--force` only when you explicitly want an early recheck. Finished model results survive an interrupted overall run; unfinished model checks are retried. Specialized models are classified again without inference and do not receive a paid-probe cooldown.
+
+The result separates `available` (both checks passed and the returned identity matches), `unavailable` (HTTP, timeout, incomplete output or tool contract failure), `fallback` (the gateway explicitly substituted another model), `different_model` (the response or selection header reports another model, which may be an alias), `unverified_identity` (either successful response omitted its model), and `skipped` (specialized or non-text endpoint). Matching requested/selected headers alone do not certify a concrete model's identity. Auto is a routing alias, so its reported model is recorded and a successful fallback can pass the audit. No result claims that a provider's undisclosed internal alias was verified. A failed text check skips the tool check. Exit code 1 means the selected audit did not fully pass; the JSON report still contains every outcome. This is evidence for short text/tool requests at the recorded time, not proof of image, long-context, task quality or future availability.
+
+Reports are written after each completed model to `<codex-home>/model-sync/probes/<provider-fingerprint>/latest.json`. The fingerprint includes the provider ID, full endpoint and current authentication headers; credentials and response bodies are never saved. Reports retain requested, selected and fallback headers, returned model IDs, and bounded HTTP error codes/types without error messages. Partial rechecks retain other current models' earlier timestamps, while `counts` and `selectedCount` describe this run. `complete: false` marks an interrupted run or failed worker. Catalog synchronization does not run this audit automatically and does not install a weekly probe schedule.
+
+Probe inputs are a short exact-text instruction and one inert function with a single fixed string argument. Explicit support for reasoning effort `none` uses a 128-token output ceiling; other models retain 512 tokens for reasoning and the required response. These ceilings are not requested output lengths, and the probe never accepts an incomplete response as success.
 
 **Automatic catalog synchronization is not live UI refresh.** Codex 0.153.4 caches the catalog inside a running app-server. Restart running Codex clients to reload the picker after the catalog changes. Newly started clients read the current catalog. This tool never restarts active conversations automatically. See the [official catalog setting](https://learn.chatgpt.com/docs/config-file/config-reference#model_catalog_json).
 

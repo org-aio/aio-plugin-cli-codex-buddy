@@ -8,6 +8,10 @@ import { atomicWrite, command, readJson, withLock } from '../runtime/index.mjs';
 import { buildCatalog, indexModels, visibleModelIds } from '../catalog/index.mjs';
 import { fetchJson } from './http.mjs';
 
+export const catalogSyncVerification = {
+  scope: 'catalog_only', availability: 'not_probed_by_sync', probeCommand: 'codex-buddy probe',
+};
+
 export async function syncModels(home, { codexBin, setup = false } = {}) {
   const directory = join(home, 'model-sync');
   return withLock(directory, async () => {
@@ -63,13 +67,16 @@ export async function syncModels(home, { codexBin, setup = false } = {}) {
       const result = {
         ok: true, checkedAt: new Date().toISOString(), changed, provider: connection.providerId,
         endpoint: connection.url.origin + connection.url.pathname, visibleCount: after.size,
+        verification: catalogSyncVerification,
         added: [...after].filter(id => !before.has(id)).sort(),
         removed: [...before].filter(id => !after.has(id)).sort(), catalogPath,
       };
       await atomicWrite(join(directory, 'status.json'), result);
       return result;
     } catch (error) {
-      await atomicWrite(join(directory, 'status.json'), { ok: false, checkedAt: new Date().toISOString(), error: error.message });
+      await atomicWrite(join(directory, 'status.json'), {
+        ok: false, checkedAt: new Date().toISOString(), error: error.message, verification: catalogSyncVerification,
+      });
       throw error;
     }
   });

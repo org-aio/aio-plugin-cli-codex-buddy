@@ -22,13 +22,13 @@ async function fixture(t) {
   await chmod(binary, 0o755);
   const state = { ids: ['native', 'old-custom'], httpStatus: 200, requests: [], key: 'fixture-key', manifestStatus: 404, manifestIds: [] };
   const server = createServer((request, response) => {
-    state.requests.push({ url: request.url, authorization: request.headers.authorization });
+    state.requests.push({ url: request.url, method: request.method, authorization: request.headers.authorization });
     if (request.headers.authorization !== `Bearer ${state.key}`) {
       response.writeHead(401).end('{}'); return;
     }
     if (request.url.includes('client_version')) {
       response.writeHead(state.manifestStatus, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ models: state.manifestIds.map(slug => ({ slug })) }));
+      response.end(JSON.stringify({ models: state.manifestModels ?? state.manifestIds.map(slug => ({ slug })) }));
       return;
     }
     response.writeHead(state.httpStatus, { 'content-type': 'application/json' });
@@ -101,6 +101,40 @@ test('packaged CLI appends manifest-only IDs to the provider model list', async 
   assert.equal((await stat(path)).mtimeMs, unchangedMtime);
 });
 
+test('sync and status distinguish catalog entries from inference verification without probing', async t => {
+  const { home, state, run, env } = await fixture(t);
+  const expected = { scope: 'catalog_only', availability: 'not_probed_by_sync', probeCommand: 'codex-buddy probe' };
+  const synced = JSON.parse((await run('setup', '--no-service')).stdout);
+  assert.deepEqual(synced.verification, expected);
+  const saved = JSON.parse(await readFile(join(home, 'model-sync', 'status.json'), 'utf8'));
+  assert.deepEqual(saved.verification, expected);
+  const printed = await exec(process.execPath, [cli, 'sync', '--home', home, '--codex-bin', join(home, 'fake-codex.mjs')], { env, timeout: 30000 });
+  assert.match(printed.stdout, /Up to date: 2 catalog models \(availability not probed by sync\)\./);
+  delete saved.verification;
+  await writeFile(join(home, 'model-sync', 'status.json'), JSON.stringify(saved));
+  assert.deepEqual(JSON.parse((await run('status')).stdout).verification, expected);
+  assert.ok(state.requests.every(request => request.method === 'GET'));
+});
+
+test('packaged sync refreshes auto image support after an earlier text-only catalog', async t => {
+  const { home, state, run } = await fixture(t);
+  state.ids = ['auto'];
+  await run('setup', '--no-service');
+  const path = join(home, 'model-sync', 'catalog.json');
+  const modalities = async () => JSON.parse(await readFile(path, 'utf8')).models[0].input_modalities;
+  assert.deepEqual(await modalities(), ['text']);
+
+  state.manifestStatus = 200;
+  state.manifestModels = [{ ...genericModel('auto'), input_modalities: ['text', 'image'] }];
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
+  assert.deepEqual(await modalities(), ['text', 'image']);
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, false);
+
+  state.manifestModels[0].input_modalities = ['text'];
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
+  assert.deepEqual(await modalities(), ['text']);
+});
+
 test('failed HTTP, empty list, duplicate IDs, and Codex rejection preserve the last catalog', async t => {
   const { home, state, run } = await fixture(t);
   await run('setup', '--no-service');
@@ -133,7 +167,7 @@ test('changing provider base_url is picked up and a manual catalog override is r
   assert.ok((await readFile(configPath, 'utf8')).includes('"manual.json"'));
 });
 
-test('legacy default/setup commands only install synchronization and preserve explicit router choices', { skip: process.platform === 'win32' }, async t => {
+test('default/setup syncs without a service and preserves explicit router choices', { skip: process.platform === 'win32' }, async t => {
   const { home, run, env } = await fixture(t);
   const preload = join(home, 'isolate-scheduler.mjs');
   // Exercise the packaged CLI and service files while isolating the OS scheduler.
@@ -153,16 +187,26 @@ syncBuiltinESMExports();
   env.XDG_CONFIG_HOME = join(home, 'os-config');
   for (const args of [[], ['setup'], ['--no-router']]) {
     const result = JSON.parse((await run(...args)).stdout);
-    assert.equal(result.visibleCount, 2); assert.ok(result.service);
+    assert.equal(result.visibleCount, 2); assert.equal(result.service, null);
     assert.equal(result.router, undefined);
     for (const file of ['model-router/install.json', 'hooks.json', 'agents/project-operations.toml']) await assert.rejects(stat(join(home, file)), { code: 'ENOENT' });
   }
+  const enabled = JSON.parse((await run('setup', '--service')).stdout);
+  assert.equal(enabled.service.interval, 604800);
+  assert.equal(JSON.parse(await readFile(join(home, 'model-sync', 'state.json'), 'utf8')).service.interval, 604800);
+  const custom = JSON.parse((await run('setup', '--service', '--interval', '3600')).stdout);
+  assert.equal(custom.service.interval, 3600);
+  assert.equal(JSON.parse(await readFile(join(home, 'model-sync', 'state.json'), 'utf8')).service.interval, 3600);
+  const disabled = JSON.parse((await run('setup')).stdout);
+  assert.equal(disabled.service, null);
+  assert.equal(JSON.parse(await readFile(join(home, 'model-sync', 'state.json'), 'utf8')).service, null);
+  await assert.rejects(run('setup', '--no-service', '--interval', '3600'), /--no-service cannot be used/);
   const policy = join(home, 'model-router/policy.json');
   await mkdir(join(home, 'model-router'));
-  for (const enabled of [true, false]) {
-    const original = JSON.stringify({ enabled, models: { 'private/model': { modelTier: 'standard' } } });
+  for (const routerEnabled of [true, false]) {
+    const original = JSON.stringify({ enabled: routerEnabled, models: { 'private/model': { modelTier: 'standard' } } });
     await writeFile(policy, original);
-    await run('setup');
+    await run('setup', '--service');
     assert.equal(await readFile(policy, 'utf8'), original);
   }
 });
@@ -196,7 +240,7 @@ test('Windows accepts the scheduled task and uninstall removes it', { skip: proc
   const id = serviceId(home);
   t.after(async () => { try { await exec('schtasks.exe', ['/Delete', '/TN', id, '/F'], { env }); } catch { /* Already removed. */ } });
   try {
-    await run('setup');
+    await run('setup', '--service');
     await exec('schtasks.exe', ['/Query', '/TN', id], { env });
     await run('uninstall');
     await assert.rejects(exec('schtasks.exe', ['/Query', '/TN', id], { env }));
