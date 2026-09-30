@@ -264,8 +264,9 @@ test('Windows accepts the scheduled task and uninstall removes it', { skip: proc
     await exec('schtasks.exe', ['/Query', '/TN', id], { env });
     await run('uninstall');
     await assert.rejects(exec('schtasks.exe', ['/Query', '/TN', id], { env }));
-    await run('setup');
-    await exec('schtasks.exe', ['/Delete', '/TN', id, '/F'], { env });
+    const disabled = JSON.parse((await run('setup')).stdout);
+    assert.equal(disabled.service, null);
+    await assert.rejects(exec('schtasks.exe', ['/Query', '/TN', id], { env }));
     const result = JSON.parse((await run('uninstall')).stdout);
     assert.equal(result.ok, true);
     assert.equal(result.restored, true);
