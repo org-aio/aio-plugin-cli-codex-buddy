@@ -37,14 +37,21 @@ export function buildCatalog(listing, existing, bundled, manifest = {}) {
   const previous = indexModels(existing.models || [], 'slug', true);
   const native = indexModels(bundled.models, 'slug');
   const remote = indexModels(manifest.models || [], 'slug', true);
-  const models = [...ids.keys()].map((slug, index) => {
-    // 当前供应商声明的输入能力必须覆盖旧缓存，避免 Auto 的图片支持永远停留在旧值。
-    const inputModalities = remote.get(slug)?.input_modalities ?? ids.get(slug)?.input_modalities;
-    return {
-      ...(native.get(slug) || previous.get(slug) || remote.get(slug) || genericModel(slug)),
-      ...(inputModalities === undefined ? {} : { input_modalities: inputModalities }),
-      slug, display_name: slug, visibility: 'list', supported_in_api: true, priority: index + 1,
-    };
-  });
+  const models = [...ids.keys()].map((slug, index) => ({
+    ...(native.get(slug) || previous.get(slug) || remote.get(slug) || genericModel(slug)),
+    ...inputCapabilities(remote.get(slug) || ids.get(slug)),
+    slug, display_name: slug, visibility: 'list', supported_in_api: true, priority: index + 1,
+  }));
   return { models };
+}
+
+// 网关可动态提供或撤回视觉辅助；旧目录和客户端内置值不能覆盖当前能力。
+function inputCapabilities(model) {
+  const modalities = model?.input_modalities;
+  if (!Array.isArray(modalities) || !modalities.length ||
+      !modalities.every(value => value === 'text' || value === 'image')) return {};
+  return {
+    input_modalities: [...new Set(modalities)],
+    supports_image_detail_original: modalities.includes('image') && model.supports_image_detail_original === true,
+  };
 }

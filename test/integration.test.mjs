@@ -28,7 +28,7 @@ async function fixture(t) {
     }
     if (request.url.includes('client_version')) {
       response.writeHead(state.manifestStatus, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ models: state.manifestModels ?? state.manifestIds.map(slug => ({ slug })) }));
+      response.end(JSON.stringify(state.manifest ?? { models: state.manifestModels ?? state.manifestIds.map(slug => ({ slug })) }));
       return;
     }
     response.writeHead(state.httpStatus, { 'content-type': 'application/json' });
@@ -133,6 +133,26 @@ test('packaged sync refreshes auto image support after an earlier text-only cata
   state.manifestModels[0].input_modalities = ['text'];
   assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
   assert.deepEqual(await modalities(), ['text']);
+});
+
+test('sync refreshes gateway vision capabilities for existing and bundled models in both directions', async t => {
+  const { home, state, run } = await fixture(t);
+  await run('setup', '--no-service');
+  const path = join(home, 'model-sync', 'catalog.json');
+  const before = JSON.parse(await readFile(path, 'utf8'));
+  state.manifestStatus = 200;
+  state.manifest = { models: state.ids.map(slug => ({ slug, input_modalities: ['text', 'image'], supports_image_detail_original: false })) };
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
+  const assisted = JSON.parse(await readFile(path, 'utf8'));
+  for (const [index, model] of assisted.models.entries()) {
+    assert.deepEqual(model.input_modalities, ['text', 'image']);
+    assert.equal(model.supports_image_detail_original, false);
+    assert.equal(model.base_instructions, before.models[index].base_instructions);
+  }
+  state.manifest.models.forEach(model => { model.input_modalities = ['text']; });
+  await run('sync');
+  for (const model of JSON.parse(await readFile(path, 'utf8')).models) assert.deepEqual(model.input_modalities, ['text']);
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, false);
 });
 
 test('failed HTTP, empty list, duplicate IDs, and Codex rejection preserve the last catalog', async t => {
