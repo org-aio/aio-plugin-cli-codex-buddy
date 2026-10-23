@@ -19,7 +19,7 @@ export function genericModel(id) {
     supports_reasoning_summaries: false, supports_reasoning_summary_parameter: false,
     support_verbosity: false, default_verbosity: null, apply_patch_tool_type: null,
     web_search_tool_type: 'text', truncation_policy: { mode: 'bytes', limit: 10000 },
-    supports_parallel_tool_calls: false, context_window: 32000, input_modalities: ['text'],
+    supports_parallel_tool_calls: false, context_window: 32000, input_modalities: ['text', 'image'],
     experimental_supported_tools: [],
   };
 }
@@ -45,13 +45,16 @@ export function buildCatalog(listing, existing, bundled, manifest = {}) {
   return { models };
 }
 
-// 网关可动态提供或撤回视觉辅助；旧目录和客户端内置值不能覆盖当前能力。
+// 网关闭环里所有目录模型都能通过视觉助手读图，客户端不应再按上游声明关闭图片输入。
+// 因此无论上游目录声明文本还是图片，统一向 Codex 声明 text+image；
+// supports_image_detail_original 仍只透传上游显式开启的值。
 function inputCapabilities(model) {
   const modalities = model?.input_modalities;
-  if (!Array.isArray(modalities) || !modalities.length ||
-      !modalities.every(value => value === 'text' || value === 'image')) return {};
+  const declared = Array.isArray(modalities) && modalities.length &&
+    modalities.every(value => value === 'text' || value === 'image');
   return {
-    input_modalities: [...new Set(modalities)],
-    supports_image_detail_original: modalities.includes('image') && model.supports_image_detail_original === true,
+    input_modalities: ['text', 'image'],
+    supports_image_detail_original: declared && modalities.includes('image') &&
+      model.supports_image_detail_original === true,
   };
 }

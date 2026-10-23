@@ -116,33 +116,33 @@ test('sync and status distinguish catalog entries from inference verification wi
   assert.ok(state.requests.every(request => request.method === 'GET'));
 });
 
-test('packaged sync refreshes auto image support after an earlier text-only catalog', async t => {
+test('packaged sync always declares image input, including after a text-only manifest', async t => {
   const { home, state, run } = await fixture(t);
   state.ids = ['auto'];
   await run('setup', '--no-service');
   const path = join(home, 'model-sync', 'catalog.json');
   const modalities = async () => JSON.parse(await readFile(path, 'utf8')).models[0].input_modalities;
-  assert.deepEqual(await modalities(), ['text']);
+  assert.deepEqual(await modalities(), ['text', 'image']);
 
   state.manifestStatus = 200;
   state.manifestModels = [{ ...genericModel('auto'), input_modalities: ['text', 'image'] }];
-  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
+  await run('sync');
   assert.deepEqual(await modalities(), ['text', 'image']);
-  assert.equal(JSON.parse((await run('sync')).stdout).changed, false);
 
   state.manifestModels[0].input_modalities = ['text'];
-  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
-  assert.deepEqual(await modalities(), ['text']);
+  await run('sync');
+  assert.deepEqual(await modalities(), ['text', 'image']);
 });
 
-test('sync refreshes gateway vision capabilities for existing and bundled models in both directions', async t => {
+test('sync keeps every existing and bundled model image-capable regardless of gateway declarations', async t => {
   const { home, state, run } = await fixture(t);
   await run('setup', '--no-service');
   const path = join(home, 'model-sync', 'catalog.json');
   const before = JSON.parse(await readFile(path, 'utf8'));
+  for (const model of before.models) assert.deepEqual(model.input_modalities, ['text', 'image']);
   state.manifestStatus = 200;
   state.manifest = { models: state.ids.map(slug => ({ slug, input_modalities: ['text', 'image'], supports_image_detail_original: false })) };
-  assert.equal(JSON.parse((await run('sync')).stdout).changed, true);
+  assert.equal(JSON.parse((await run('sync')).stdout).changed, false);
   const assisted = JSON.parse(await readFile(path, 'utf8'));
   for (const [index, model] of assisted.models.entries()) {
     assert.deepEqual(model.input_modalities, ['text', 'image']);
@@ -151,7 +151,7 @@ test('sync refreshes gateway vision capabilities for existing and bundled models
   }
   state.manifest.models.forEach(model => { model.input_modalities = ['text']; });
   await run('sync');
-  for (const model of JSON.parse(await readFile(path, 'utf8')).models) assert.deepEqual(model.input_modalities, ['text']);
+  for (const model of JSON.parse(await readFile(path, 'utf8')).models) assert.deepEqual(model.input_modalities, ['text', 'image']);
   assert.equal(JSON.parse((await run('sync')).stdout).changed, false);
 });
 
